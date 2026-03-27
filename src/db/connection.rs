@@ -5,7 +5,7 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 /// Creates a PostgreSQL connection pool from the given `database_url`.
 ///
 /// The maximum number of connections is read from the `MAX_DB_CONNECTIONS`
-/// environment variable, falling back to **20** when unset or unparseable.
+/// environment variable, falling back to **10** when unset or unparseable.
 /// A minimum of **2** idle connections is always maintained.
 ///
 /// # Panics
