@@ -1,0 +1,68 @@
+[package]
+name = "storm-api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+# Core
+axum = "0.8.8"
+tokio = { version = "1.50.0", features = ["full"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+
+# Tower / HTTP layers
+tower = { version = "0.5.3", features = ["full"] }
+tower-http = { version = "0.6.8", features = [
+    "cors",
+    "compression-gzip",
+    "timeout",
+    "trace",
+    "limit",
+] }
+
+# Database
+sqlx = { version = "0.8.6", features = [
+    "runtime-tokio",
+    "postgres",
+    "uuid",
+    "chrono",
+    "migrate",
+] }
+
+# Auth
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
+argon2 = "0.5.3"
+rand = "0.10.0"
+chrono = { version = "0.4.44", features = ["serde"] }
+
+# Error handling
+thiserror = "2.0.18"
+
+# Logging
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+
+# Cache
+redis = { version = "1.1.0", features = ["tokio-comp", "connection-manager"] }
+
+# OpenAPI documentation
+utoipa = { version = "5.4.0", features = ["axum_extras", "uuid", "chrono"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+
+# Utilities
+uuid = { version = "1.23.0", features = ["v4", "serde"] }
+dotenvy = "0.15.7"
+
+[dev-dependencies]
+tower-service = "0.3.3"
+http-body-util = "0.1.3"
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
+mockall = "0.14.0"
+reqwest = { version = "0.13.2", features = ["json"] }
+testcontainers = "0.27.2"
+testcontainers-modules = { version = "0.15.0", features = [
+    "postgres",
+    "redis",
+] }
+serial_test = "3.4.0"
