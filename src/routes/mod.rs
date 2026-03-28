@@ -4,6 +4,7 @@
 //! is mounted in [`crate::app::create_app`].
 
 pub mod auth;
+pub mod cards;
 pub mod categories;
 pub mod commission_tiers;
 pub mod commissions;

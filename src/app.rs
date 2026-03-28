@@ -39,6 +39,7 @@ pub fn create_app(state: AppState) -> Router {
         .route("/api/v1/auth/logout", post(auth_handler::logout))
         .nest("/api/v1/users", routes::users::routes())
         .nest("/api/v1/categories", routes::categories::routes())
+        .nest("/api/v1/cards", routes::cards::routes())
         .nest("/api/v1/commissions", routes::commissions::routes())
         .nest(
             "/api/v1/commission-tiers",

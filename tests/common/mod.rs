@@ -119,3 +119,26 @@ pub fn test_state_with_redis(
         request_count: Arc::new(AtomicU64::new(0)),
     }
 }
+
+// Seed helpers
+// ============
+
+/// Insert a card into `cards`.
+pub async fn seed_card(pool: &PgPool, nfc: &str) {
+    sqlx::query("INSERT INTO cards (id, card_id) VALUES ($1, $2)")
+        .bind(Uuid::new_v4())
+        .bind(nfc)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+/// Insert a commission percentage into `commissions`
+async fn seed_commission(pool: &PgPool, percentage: f64) {
+    sqlx::query("INSERT INTO commissions (id, percentage) VALUES ($1, $2)")
+        .bind(Uuid::new_v4())
+        .bind(percentage)
+        .execute(pool)
+        .await
+        .unwrap();
+}

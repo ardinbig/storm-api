@@ -117,6 +117,29 @@ jobs:
     name: Code Coverage & Report
     runs-on: ubuntu-latest
     needs: [unit-tests, integration-tests]
+    services:
+      postgres:
+        image: postgres:18-bookworm
+        env:
+          POSTGRES_USER: storm
+          POSTGRES_PASSWORD: storm_secret
+          POSTGRES_DB: storm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8-bookworm
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v6
 
@@ -133,7 +156,7 @@ jobs:
         with:
           tool: cargo-llvm-cov
 
-      - name: Generate Coverage Report
+      - name: Run Tests & Generate Coverage Report
         env:
           DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
           REDIS_URL: redis://localhost:6379

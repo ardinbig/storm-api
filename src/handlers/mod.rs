@@ -5,6 +5,7 @@
 //! service function, and wrap the result in `Json` or an HTTP status code.
 
 pub mod auth_handler;
+pub mod card_handler;
 pub mod category_handler;
 pub mod commission_handler;
 pub mod commission_tier_handler;

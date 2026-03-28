@@ -5,6 +5,7 @@
 //! inline.
 
 pub mod auth_service;
+pub mod card_service;
 pub mod category_service;
 pub mod commission_service;
 pub mod commission_tier_service;
