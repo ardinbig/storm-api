@@ -1,6 +1,4 @@
-use crate::common::{
-    body_to_value, register_and_login,  test_config, test_state
-};
+use crate::common::{body_to_value, register_and_login, test_config, test_state};
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
