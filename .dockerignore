@@ -1,0 +1,11 @@
+target/
+.git/
+.idea/
+.vscode/
+.env
+.env.local
+.env.production
+compose.override.yml
+*.md
+!README.md
+tests/
