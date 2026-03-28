@@ -4,4 +4,6 @@
 //! Each submodule groups the types for a single domain entity.
 
 pub mod category;
+pub mod commission;
+pub mod commission_tier;
 pub mod user;

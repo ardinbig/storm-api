@@ -5,5 +5,7 @@
 
 pub mod auth;
 pub mod categories;
+pub mod commission_tiers;
+pub mod commissions;
 pub mod health;
 pub mod users;

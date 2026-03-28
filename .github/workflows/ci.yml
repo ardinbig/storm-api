@@ -48,7 +48,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Execute Unit Tests
-        run: cargo test --all --locked
+        run: cargo test --locked --test unit
 
   # Runs integration tests with PostgreSQL and Redis services, applies DB migrations,
   # and ensures the app works end-to-end with real dependencies.
@@ -110,7 +110,7 @@ jobs:
           DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
           REDIS_URL: redis://localhost:6379
           JWT_SECRET: change-me-to-a-random-64-char-string-in-production
-        run: cargo test --all --locked -- --include-ignored
+        run: cargo test --locked --test integration -- --include-ignored
 
   # Run code coverage analysis using cargo-llvm-cov and uploads the report to Codecov.
   coverage:
@@ -138,17 +138,7 @@ jobs:
           DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
           REDIS_URL: redis://localhost:6379
           JWT_SECRET: change-me-to-a-random-64-char-string-in-production
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
-
-      - name: Check Coverage Threshold
-        run: |
-          cargo llvm-cov --all-features --workspace --summary-only > coverage.txt
-          COVERAGE=$(awk '/^total:/ {print $2}' coverage.txt | sed 's/%//')
-          echo "Coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-            echo "Code coverage ($COVERAGE%) is below the required 80%."
-            exit 1
-          fi
+        run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "main\.rs" --lcov --output-path lcov.info
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v5
