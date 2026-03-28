@@ -103,3 +103,18 @@ pub fn card_detail_key(nfc_ref: &str) -> String {
 pub fn price_key(consumption_type: &str) -> String {
     format!("price:{consumption_type}")
 }
+
+/// Test-only helper that calls [`set`] with a value guaranteed to fail
+/// serialization, exercising the `serde_json::to_string` error branch inside
+/// the library crate (avoids cross-crate monomorphization blind spots in
+/// coverage tools).
+#[doc(hidden)]
+pub async fn _test_set_bad_serialize(redis: &RedisPool, key: &str) {
+    struct Bad;
+    impl serde::Serialize for Bad {
+        fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
+            Err(serde::ser::Error::custom("intentional test failure"))
+        }
+    }
+    set(redis, key, &Bad, 60).await;
+}
