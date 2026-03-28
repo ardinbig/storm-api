@@ -18,7 +18,7 @@ use tower_http::{
 };
 
 use crate::{
-    handlers::{auth_handler},
+    handlers::auth_handler,
     models::user::CurrentUser,
     routes,
     services::auth_service,
@@ -32,8 +32,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub fn create_app(state: AppState) -> Router {
     // Public routes (no auth required)
-    let public = Router::new()
-        .nest("/api/v1/auth", routes::auth::routes());
+    let public = Router::new().nest("/api/v1/auth", routes::auth::routes());
 
     // Protected routes (JWT required)
     let protected = Router::new()

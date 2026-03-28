@@ -4,5 +4,5 @@
 //! is mounted in [`crate::app::create_app`].
 
 pub mod auth;
-pub mod users;
 pub mod health;
+pub mod users;

@@ -5,5 +5,5 @@
 //! service function, and wrap the result in `Json` or an HTTP status code.
 
 pub mod auth_handler;
-pub mod user_handler;
 pub mod health_handler;
+pub mod user_handler;
