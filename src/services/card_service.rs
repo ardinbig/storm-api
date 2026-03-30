@@ -42,7 +42,7 @@ pub async fn get_detail_by_nfc(
     }
 
     let card = sqlx::query_as::<_, CardDetail>(
-        "SELECT id, amount::FLOAT8 AS amount, nfc_ref, registration_code, password, network
+        "SELECT id, amount::FLOAT8 AS amount, nfc_ref, client_code, password, network
          FROM card_details
          WHERE nfc_ref = $1",
     )
@@ -138,7 +138,7 @@ pub async fn check_balance(
 
     Ok(BalanceResponse {
         nfc_ref: card.nfc_ref,
-        registration_code: card.registration_code,
+        client_code: card.client_code,
         amount: card.amount,
         network: card.network,
     })

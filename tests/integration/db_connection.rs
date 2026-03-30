@@ -3,6 +3,7 @@ use testcontainers_modules::postgres::Postgres;
 
 /// Spin up a disposable container, connect via `create_pool`, and run a query.
 #[tokio::test]
+#[serial_test::serial]
 async fn create_pool_success() {
     let container = Postgres::default()
         .start()

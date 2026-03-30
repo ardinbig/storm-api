@@ -22,8 +22,8 @@ async fn seed_customer_for_consumption(pool: &PgPool) -> String {
         .await
         .unwrap();
     sqlx::query(
-        "INSERT INTO customers (id, client_code, name, card_id)
-         VALUES ($1, $2, 'Consumption Customer', $3)",
+        "INSERT INTO customers (id, client_code, first_name, last_name, card_id)
+         VALUES ($1, $2, 'Consumption', 'Customer', $3)",
     )
     .bind(Uuid::new_v4())
     .bind(&client_code)

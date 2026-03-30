@@ -2,7 +2,6 @@
 -- Fuel station management system
 -- All types, constraints, triggers, views, and indexes in a single file.
 
-
 -- UTILITY FUNCTIONS
 
 -- Auto-update trigger function for updated_at columns
@@ -20,13 +19,19 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE IF NOT EXISTS cards (
     id UUID PRIMARY KEY,
     card_id VARCHAR(255) NOT NULL UNIQUE,
-    status VARCHAR(45) DEFAULT 'Production'
+    status VARCHAR(45) DEFAULT 'Staging',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
 );
+
+CREATE TRIGGER trg_cards_updated_at
+    BEFORE UPDATE ON cards
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 
 -- 1.2 Vehicle/customer categories
 CREATE TABLE IF NOT EXISTS categories (
     id UUID PRIMARY KEY,
-    name VARCHAR(30) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -38,11 +43,17 @@ ON CONFLICT (id) DO NOTHING;
 -- 1.3 System users (station/admin login)
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
-    name TEXT NOT NULL,
-    email TEXT DEFAULT NULL,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) DEFAULT NULL,
+    username VARCHAR(255) NOT NULL UNIQUE,
     password TEXT NOT NULL,
-    username TEXT NOT NULL UNIQUE
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
 );
+
+CREATE TRIGGER trg_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 
 -- 1.4 Commission rates
 CREATE TABLE IF NOT EXISTS commissions (
@@ -63,21 +74,26 @@ CREATE TABLE IF NOT EXISTS commission_tiers (
 -- 1.6 Fuel prices
 CREATE TABLE IF NOT EXISTS prices (
     id UUID PRIMARY KEY,
-    consumption_type VARCHAR(30) NOT NULL,
+    consumption_type VARCHAR(255) NOT NULL,
     price DOUBLE PRECISION NOT NULL,
-    price_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    price_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
 );
+
+CREATE TRIGGER trg_prices_updated_at
+    BEFORE UPDATE ON prices
+    FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 
 -- 1.7 Agent accounts
 CREATE TABLE IF NOT EXISTS agent_accounts (
     id UUID PRIMARY KEY,
     agent_ref VARCHAR(255) NOT NULL UNIQUE,
-    name VARCHAR(45) DEFAULT NULL,
+    name VARCHAR(255) DEFAULT NULL,
     password VARCHAR(255) DEFAULT NULL,
     balance DOUBLE PRECISION DEFAULT 0,
     currency_code VARCHAR(255) NOT NULL DEFAULT 'CDF',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TRIGGER trg_agent_accounts_updated_at
@@ -89,11 +105,11 @@ CREATE TABLE IF NOT EXISTS card_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     amount DOUBLE PRECISION NOT NULL DEFAULT 0,
     nfc_ref VARCHAR(255) NOT NULL UNIQUE,
-    registration_code VARCHAR(30) NOT NULL UNIQUE,
+    client_code VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) DEFAULT NULL,
     network VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
     CONSTRAINT fk_card_details_cards FOREIGN KEY (nfc_ref) REFERENCES cards(card_id)
 );
 
@@ -104,20 +120,21 @@ CREATE TRIGGER trg_card_details_updated_at
 -- 1.9 Customer profiles
 CREATE TABLE IF NOT EXISTS customers (
     id UUID PRIMARY KEY,
+    status INTEGER NOT NULL DEFAULT 1,
     client_code VARCHAR(255) DEFAULT NULL UNIQUE,
-    name VARCHAR(255) DEFAULT NULL,
     first_name VARCHAR(255) DEFAULT NULL,
+    middle_name VARCHAR(255) DEFAULT NULL,
     last_name VARCHAR(255) DEFAULT NULL,
     address VARCHAR(255) DEFAULT NULL,
     networks VARCHAR(255) DEFAULT NULL,
     phone VARCHAR(15) DEFAULT NULL,
     category_ref UUID DEFAULT NULL,
-    card_id VARCHAR(255) DEFAULT NULL,
     gender VARCHAR(15) DEFAULT NULL,
     marital_status VARCHAR(25) DEFAULT NULL,
-    affiliation VARCHAR(25) DEFAULT NULL,
+    affiliation VARCHAR(255) DEFAULT NULL,
+    card_id VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
     CONSTRAINT fk_customers_cards FOREIGN KEY (card_id) REFERENCES cards(card_id),
     CONSTRAINT fk_customers_categories FOREIGN KEY (category_ref) REFERENCES categories(id)
 );
@@ -126,39 +143,20 @@ CREATE TRIGGER trg_customers_updated_at
     BEFORE UPDATE ON customers
     FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 
--- 1.10 Customer enrollment / registrations
-CREATE TABLE IF NOT EXISTS registrations (
-    id UUID PRIMARY KEY,
-    card_id VARCHAR(255) NOT NULL,
-    name VARCHAR(255) DEFAULT NULL,
-    last_name VARCHAR(255) DEFAULT NULL,
-    first_name VARCHAR(255) DEFAULT NULL,
-    gender VARCHAR(15) DEFAULT NULL,
-    affiliation VARCHAR(25) DEFAULT NULL,
-    phone VARCHAR(15) DEFAULT NULL,
-    address VARCHAR(255) DEFAULT NULL,
-    network VARCHAR(255) DEFAULT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    status INTEGER NOT NULL DEFAULT 1,
-    password VARCHAR(255) DEFAULT NULL,
-    category UUID DEFAULT NULL,
-    state INTEGER NOT NULL DEFAULT 1
-);
-
--- 1.11 Fuel consumption log
+-- 1.10 Fuel consumption log
 CREATE TABLE IF NOT EXISTS consumptions (
     id UUID PRIMARY KEY,
     client_ref VARCHAR(255) NOT NULL,
-    consumption_type VARCHAR(30) NOT NULL,
+    consumption_type VARCHAR(255) NOT NULL,
     quantity DOUBLE PRECISION NOT NULL,
     price DOUBLE PRECISION NOT NULL,
     username VARCHAR(255) NOT NULL,
     consumption_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    status INTEGER NOT NULL DEFAULT 1,
+    status INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT fk_consumptions_customers FOREIGN KEY (client_ref) REFERENCES customers(client_code)
 );
 
--- 1.12 Financial transactions
+-- 1.11 Financial transactions
 CREATE TABLE IF NOT EXISTS transactions (
     id UUID PRIMARY KEY,
     date TIMESTAMPTZ DEFAULT NOW(),
@@ -171,7 +169,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     CONSTRAINT fk_transactions_agents FOREIGN KEY (agent_account) REFERENCES agent_accounts(agent_ref)
 );
 
--- 1.13 Loyalty bonuses
+-- 1.12 Loyalty bonuses
 CREATE TABLE IF NOT EXISTS bonuses (
     id UUID PRIMARY KEY,
     client_ref VARCHAR(255) NOT NULL,
@@ -188,14 +186,16 @@ CREATE TABLE IF NOT EXISTS bonuses (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 1.14 Deletion audit log
+-- 1.13 Deletion audit log
+-- TODO(ardinbig): create a trigger to log deletions from customers, consumptions, and transactions into this table
 CREATE TABLE IF NOT EXISTS deleted_records (
     id UUID PRIMARY KEY,
     agent_ref VARCHAR(255) DEFAULT NULL,
     deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     client_ref VARCHAR(255) DEFAULT NULL,
     deleted_quantity DOUBLE PRECISION NOT NULL,
-    consumption_type VARCHAR(255) NOT NULL
+    consumption_type VARCHAR(255) NOT NULL,
+    comment TEXT DEFAULT NULL
 );
 
 -- 2. VIEWS
@@ -204,49 +204,33 @@ CREATE TABLE IF NOT EXISTS deleted_records (
 CREATE OR REPLACE VIEW regular_consumers AS
 SELECT
     COALESCE(SUM(co.quantity), 0)::NUMERIC(32, 0) AS total_quantity,
-    cu.name,
+    cu.first_name || ' ' || cu.last_name AS name,
     cu.client_code,
     cu.phone
 FROM customers cu
 LEFT JOIN consumptions co ON co.client_ref = cu.client_code
-GROUP BY cu.name, cu.client_code, cu.phone
+GROUP BY cu.first_name, cu.last_name, cu.client_code, cu.phone
 ORDER BY total_quantity DESC;
 
 -- 2.2 Best customers for SMS
 CREATE OR REPLACE VIEW best_customers_sms AS
 SELECT
     cu.client_code AS client_ref,
-    cu.name,
+    cu.first_name || ' ' || cu.last_name AS name,
     cu.phone,
     COALESCE(SUM(co.quantity), 0)::INTEGER AS quantity
 FROM customers cu
 LEFT JOIN consumptions co ON co.client_ref = cu.client_code
-GROUP BY cu.client_code, cu.name, cu.phone
+GROUP BY cu.client_code, cu.first_name, cu.last_name, cu.phone
 ORDER BY quantity DESC;
 
--- 2.3 Withdrawal summary
-CREATE OR REPLACE VIEW withdrawal_summary AS
-SELECT
-    t.date            AS transaction_date,
-    t.transaction_type AS movement_type,
-    t.client_account  AS client_card,
-    c.name            AS beneficiary,
-    c.phone           AS phone,
-    t.agent_account   AS agent_ref,
-    a.name            AS agent_name,
-    t.amount          AS amount,
-    a.currency_code   AS currency
-FROM transactions t
-    INNER JOIN customers c  ON t.client_account = c.card_id
-    INNER JOIN agent_accounts a ON t.agent_account = a.agent_ref;
-
--- 2.4 Full withdrawal summary with commission
+-- 2.3 Full withdrawal summary with commission
 CREATE OR REPLACE VIEW withdrawal_summary_full AS
 SELECT
     t.date            AS transaction_date,
     t.transaction_type AS movement_type,
     t.client_account  AS client_card,
-    c.name            AS beneficiary,
+    c.first_name || ' ' || c.last_name AS beneficiary,
     c.phone           AS phone,
     t.agent_account   AS agent_ref,
     a.name            AS agent_name,
@@ -256,6 +240,13 @@ SELECT
 FROM transactions t
     INNER JOIN customers c  ON t.client_account = c.card_id
     INNER JOIN agent_accounts a ON t.agent_account = a.agent_ref;
+
+-- 2.4 Withdrawal summary (without commission)
+CREATE OR REPLACE VIEW withdrawal_summary AS
+SELECT
+    transaction_date, movement_type, client_card, beneficiary,
+    phone, agent_ref, agent_name, amount, currency
+FROM withdrawal_summary_full;
 
 -- 3. BUSINESS TRIGGERS
 
@@ -274,26 +265,17 @@ CREATE TRIGGER tg_change_card_status_trigger
     EXECUTE FUNCTION tg_change_card_status();
 
 -- 3.2 Auto-create card_details when a customer is inserted
---     (only if a registration with a hashed password exists for that card)
 CREATE OR REPLACE FUNCTION fn_customer_insert_card_details()
 RETURNS TRIGGER AS $$
-DECLARE
-    reg_password VARCHAR(255);
 BEGIN
     IF NEW.card_id IS NULL THEN
         RETURN NEW;
     END IF;
 
-    SELECT r.password INTO reg_password
-    FROM registrations r
-    WHERE r.card_id = NEW.card_id
-    LIMIT 1;
-
-    IF FOUND AND reg_password IS NOT NULL THEN
-        INSERT INTO card_details (nfc_ref, registration_code, password, network)
-        VALUES (NEW.card_id, NEW.client_code, reg_password, NEW.networks)
-        ON CONFLICT (nfc_ref) DO NOTHING;
-    END IF;
+    -- Insert card_details with password set to NULL
+    INSERT INTO card_details (nfc_ref, client_code, password, network)
+    VALUES (NEW.card_id, NEW.client_code, NULL, NEW.networks)
+    ON CONFLICT (nfc_ref) DO NOTHING;
 
     RETURN NEW;
 END;
@@ -316,7 +298,7 @@ BEGIN
 
     SELECT cd.id INTO existing_detail_id
     FROM card_details cd
-    WHERE cd.registration_code = NEW.client_code
+    WHERE cd.client_code = NEW.client_code
     LIMIT 1;
 
     IF FOUND THEN
@@ -325,7 +307,7 @@ BEGIN
         WHERE id = existing_detail_id;
     ELSE
         -- Insert with NULL password; app layer must set it before use
-        INSERT INTO card_details (nfc_ref, registration_code, password, network)
+        INSERT INTO card_details (nfc_ref, client_code, password, network)
         VALUES (NEW.card_id, NEW.client_code, NULL, NEW.networks)
         ON CONFLICT (nfc_ref) DO NOTHING;
     END IF;
@@ -360,18 +342,18 @@ BEGIN
     -- Level 1: credit consuming customer's card balance
     UPDATE card_details
     SET amount = amount + (NEW.quantity * tier_level1)
-    WHERE registration_code = NEW.client_ref;
+    WHERE client_code = NEW.client_ref;
 
     -- Level 2: credit sponsor's card balance
     SELECT cd.network INTO sponsor_code
     FROM card_details cd
-    WHERE cd.registration_code = NEW.client_ref
+    WHERE cd.client_code = NEW.client_ref
     LIMIT 1;
 
     IF sponsor_code IS NOT NULL AND sponsor_code <> '' THEN
         UPDATE card_details
         SET amount = amount + (NEW.quantity * tier_level2)
-        WHERE registration_code = sponsor_code;
+        WHERE client_code = sponsor_code;
     END IF;
 
     RETURN NEW;
@@ -392,4 +374,3 @@ CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
 CREATE INDEX IF NOT EXISTS idx_consumptions_client_ref ON consumptions(client_ref);
 CREATE INDEX IF NOT EXISTS idx_consumptions_date ON consumptions(consumption_date DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_agent_account ON transactions(agent_account);
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
