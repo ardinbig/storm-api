@@ -2,7 +2,7 @@ name: API workflow
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -164,7 +164,7 @@ jobs:
         run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "main\.rs" --lcov --output-path lcov.info
 
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 

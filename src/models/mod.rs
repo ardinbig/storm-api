@@ -7,4 +7,6 @@ pub mod card;
 pub mod category;
 pub mod commission;
 pub mod commission_tier;
+pub mod consumption;
+pub mod price;
 pub mod user;

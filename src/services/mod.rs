@@ -9,4 +9,6 @@ pub mod card_service;
 pub mod category_service;
 pub mod commission_service;
 pub mod commission_tier_service;
+pub mod consumption_service;
+pub mod price_service;
 pub mod user_service;
