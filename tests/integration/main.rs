@@ -10,6 +10,7 @@ mod commission_tier;
 #[path = "../common/mod.rs"]
 mod common;
 mod consumption;
+mod customer;
 mod db_connection;
 mod health;
 mod price;

@@ -9,6 +9,7 @@ pub mod categories;
 pub mod commission_tiers;
 pub mod commissions;
 pub mod consumptions;
+pub mod customers;
 pub mod health;
 pub mod prices;
 pub mod users;

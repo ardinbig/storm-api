@@ -10,6 +10,7 @@ use axum::body::Body;
 use http_body_util::BodyExt;
 use serde_json::Value;
 use sqlx::PgPool;
+use testcontainers::ImageExt;
 use uuid::Uuid;
 
 use storm_api::state::app_state::{AppState, AuthConfig};
@@ -91,6 +92,7 @@ pub async fn setup_redis_pool() -> (
     use testcontainers_modules::redis::Redis;
 
     let container = Redis::default()
+        .with_tag("8-bookworm")
         .start()
         .await
         .expect("Failed to start Redis container");

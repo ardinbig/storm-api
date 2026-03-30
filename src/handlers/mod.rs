@@ -10,6 +10,7 @@ pub mod category_handler;
 pub mod commission_handler;
 pub mod commission_tier_handler;
 pub mod consumption_handler;
+pub mod customer_handler;
 pub mod health_handler;
 pub mod price_handler;
 pub mod user_handler;
