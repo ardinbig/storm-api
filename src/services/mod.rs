@@ -4,6 +4,7 @@
 //! accept `&PgPool` as their first argument. All SQL queries are written
 //! inline.
 
+pub mod agent_service;
 pub mod auth_service;
 pub mod card_service;
 pub mod category_service;

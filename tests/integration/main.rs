@@ -1,5 +1,6 @@
 //! Integration tests — require a PostgreSQL database via `#[sqlx::test]`.
 
+mod agent;
 mod auth_endpoint;
 mod auth_middleware;
 mod cache;

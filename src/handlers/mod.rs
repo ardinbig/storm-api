@@ -4,6 +4,7 @@
 //! and JSON payloads via Axum extractors, delegate to the appropriate
 //! service function, and wrap the result in `Json` or an HTTP status code.
 
+pub mod agent_handler;
 pub mod auth_handler;
 pub mod card_handler;
 pub mod category_handler;

@@ -3,6 +3,7 @@
 //! Each submodule exposes a `routes() -> Router<AppState>` function that
 //! is mounted in [`crate::app::create_app`].
 
+pub mod agents;
 pub mod auth;
 pub mod cards;
 pub mod categories;

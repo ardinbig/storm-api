@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS agent_accounts (
     id UUID PRIMARY KEY,
     agent_ref VARCHAR(255) NOT NULL UNIQUE,
     name VARCHAR(255) DEFAULT NULL,
-    password VARCHAR(255) DEFAULT NULL,
+    password TEXT DEFAULT NULL,
     balance DOUBLE PRECISION DEFAULT 0,
     currency_code VARCHAR(255) NOT NULL DEFAULT 'CDF',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -121,7 +121,7 @@ CREATE TRIGGER trg_card_details_updated_at
 CREATE TABLE IF NOT EXISTS customers (
     id UUID PRIMARY KEY,
     status INTEGER NOT NULL DEFAULT 1,
-    client_code VARCHAR(255) DEFAULT NULL UNIQUE,
+    client_code VARCHAR(255) NOT NULL UNIQUE,
     first_name VARCHAR(255) DEFAULT NULL,
     middle_name VARCHAR(255) DEFAULT NULL,
     last_name VARCHAR(255) DEFAULT NULL,
@@ -135,8 +135,11 @@ CREATE TABLE IF NOT EXISTS customers (
     card_id VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
-    CONSTRAINT fk_customers_cards FOREIGN KEY (card_id) REFERENCES cards(card_id),
-    CONSTRAINT fk_customers_categories FOREIGN KEY (category_ref) REFERENCES categories(id)
+    CONSTRAINT fk_customers_cards FOREIGN KEY (card_id) REFERENCES cards(card_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_customers_categories FOREIGN KEY (category_ref) REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE,
+    CHECK (status IN (0, 1)),
+    CHECK (gender IS NULL OR gender IN ('M', 'F')),
+    CHECK (marital_status IS NULL OR marital_status IN ('Single', 'Married', 'Divorced', 'Widowed'))
 );
 
 CREATE TRIGGER trg_customers_updated_at
@@ -153,7 +156,7 @@ CREATE TABLE IF NOT EXISTS consumptions (
     username VARCHAR(255) NOT NULL,
     consumption_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     status INTEGER NOT NULL DEFAULT 0,
-    CONSTRAINT fk_consumptions_customers FOREIGN KEY (client_ref) REFERENCES customers(client_code)
+    CONSTRAINT fk_consumptions_customers FOREIGN KEY (client_ref) REFERENCES customers(client_code) ON UPDATE CASCADE
 );
 
 -- 1.11 Financial transactions
@@ -183,11 +186,11 @@ CREATE TABLE IF NOT EXISTS bonuses (
     percentage_alt NUMERIC(15, 2) DEFAULT NULL,
     phone VARCHAR(15) NOT NULL,
     phone_alt VARCHAR(15) DEFAULT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_bonuses_customers FOREIGN KEY (client_ref) REFERENCES customers(client_code) ON UPDATE CASCADE
 );
 
 -- 1.13 Deletion audit log
--- TODO(ardinbig): create a trigger to log deletions from customers, consumptions, and transactions into this table
 CREATE TABLE IF NOT EXISTS deleted_records (
     id UUID PRIMARY KEY,
     agent_ref VARCHAR(255) DEFAULT NULL,
@@ -364,6 +367,95 @@ CREATE TRIGGER trg_consumption_bonus_tree
     AFTER INSERT ON consumptions
     FOR EACH ROW
     EXECUTE FUNCTION fn_consumption_bonus_tree();
+
+-- 3.5 Log deleted customers, consumptions, and transactions
+
+CREATE OR REPLACE FUNCTION fn_log_deleted_customer()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO deleted_records (
+        id,
+        agent_ref,
+        deleted_at,
+        client_ref,
+        deleted_quantity,
+        consumption_type,
+        comment
+    ) VALUES (
+        gen_random_uuid(),
+        NULL, -- agent_ref not available from customers
+        NOW(),
+        OLD.client_code,
+        0, -- deleted_quantity not relevant for customers
+        'N/A', -- consumption_type not relevant for customers
+        'Customer deleted'
+    );
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_log_deleted_customer
+    BEFORE DELETE ON customers
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_log_deleted_customer();
+
+CREATE OR REPLACE FUNCTION fn_log_deleted_consumption()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO deleted_records (
+        id,
+        agent_ref,
+        deleted_at,
+        client_ref,
+        deleted_quantity,
+        consumption_type,
+        comment
+    ) VALUES (
+        gen_random_uuid(),
+        NULL, -- agent_ref not available from consumptions
+        NOW(),
+        OLD.client_ref,
+        OLD.quantity,
+        OLD.consumption_type,
+        'Consumption deleted'
+    );
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_log_deleted_consumption
+    BEFORE DELETE ON consumptions
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_log_deleted_consumption();
+
+CREATE OR REPLACE FUNCTION fn_log_deleted_transaction()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO deleted_records (
+        id,
+        agent_ref,
+        deleted_at,
+        client_ref,
+        deleted_quantity,
+        consumption_type,
+        comment
+    ) VALUES (
+        gen_random_uuid(),
+        OLD.agent_account,
+        NOW(),
+        OLD.client_account,
+        OLD.amount,
+        COALESCE(OLD.transaction_type, 'N/A'),
+        'Transaction deleted'
+    );
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_log_deleted_transaction
+    BEFORE DELETE ON transactions
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_log_deleted_transaction();
 
 -- 4. INDEXES
 
