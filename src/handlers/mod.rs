@@ -14,4 +14,5 @@ pub mod consumption_handler;
 pub mod customer_handler;
 pub mod health_handler;
 pub mod price_handler;
+pub mod transaction_handler;
 pub mod user_handler;

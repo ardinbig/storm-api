@@ -11,4 +11,5 @@ pub mod commission_tier;
 pub mod consumption;
 pub mod customer;
 pub mod price;
+pub mod transaction;
 pub mod user;

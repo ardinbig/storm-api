@@ -13,4 +13,5 @@ pub mod consumptions;
 pub mod customers;
 pub mod health;
 pub mod prices;
+pub mod transactions;
 pub mod users;

@@ -49,6 +49,7 @@ pub fn create_app(state: AppState) -> Router {
         .nest("/api/v1/agents", routes::agents::routes())
         .nest("/api/v1/customers", routes::customers::routes())
         .nest("/api/v1/consumptions", routes::consumptions::routes())
+        .nest("/api/v1/transactions", routes::transactions::routes())
         .nest("/api/v1/commissions", routes::commissions::routes())
         .nest(
             "/api/v1/commission-tiers",
