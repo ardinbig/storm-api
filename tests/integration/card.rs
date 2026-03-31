@@ -167,7 +167,7 @@ async fn balance_check_success(pool: PgPool) {
         .unwrap();
     let hash = storm_api::services::auth_service::hash_password("card.pw").unwrap();
     sqlx::query(
-        "INSERT INTO card_details (nfc_ref, registration_code, password, amount)
+        "INSERT INTO card_details (nfc_ref, client_code, password, amount)
          VALUES ($1, 'REG-BALANCE-001', $2, 250.5)",
     )
     .bind(nfc)
@@ -210,7 +210,7 @@ async fn balance_check_wrong_password(pool: PgPool) {
         .unwrap();
     let hash = storm_api::services::auth_service::hash_password("correct").unwrap();
     sqlx::query(
-        "INSERT INTO card_details (nfc_ref, registration_code, password)
+        "INSERT INTO card_details (nfc_ref, client_code, password)
          VALUES ($1, 'REG-BAL-PW-001', $2)",
     )
     .bind(nfc)
@@ -250,7 +250,7 @@ async fn balance_null_password_in_db(pool: PgPool) {
         .await
         .unwrap();
     sqlx::query(
-        "INSERT INTO card_details (nfc_ref, registration_code, password)
+        "INSERT INTO card_details (nfc_ref, client_code, password)
          VALUES ($1, 'REG-NULL-PW-001', NULL)",
     )
     .bind(nfc)
@@ -289,7 +289,7 @@ async fn card_detail_served_from_cache_on_second_call(pool: PgPool) {
         .await
         .unwrap();
     sqlx::query(
-        "INSERT INTO card_details (nfc_ref, registration_code, amount)
+        "INSERT INTO card_details (nfc_ref, client_code, amount)
          VALUES ($1, 'REG-CACHE-001', 100.0)",
     )
     .bind(nfc)

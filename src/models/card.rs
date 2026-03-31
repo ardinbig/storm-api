@@ -32,7 +32,7 @@ pub struct CardDetail {
     /// NFC reference string (unique, links to `cards.card_id`).
     pub nfc_ref: String,
     /// Customer registration / client code tied to this card.
-    pub registration_code: String,
+    pub client_code: String,
     /// Argon2-hashed PIN/password for balance checks (never serialized).
     #[serde(skip_serializing)]
     #[schema(read_only)]
@@ -62,7 +62,7 @@ pub struct BalanceResponse {
     /// NFC reference string.
     pub nfc_ref: String,
     /// Client registration / code.
-    pub registration_code: String,
+    pub client_code: String,
     /// Current balance.
     pub amount: f64,
     /// Network assignment.
