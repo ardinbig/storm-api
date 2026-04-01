@@ -2,8 +2,8 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `POST` | `/login` | [`auth_handler::login`](auth_handler::login) |
-//! | `POST` | `/register` | [`auth_handler::register`](auth_handler::register) |
+//! | `POST` | `/login` | [`auth_handler::login`] |
+//! | `POST` | `/register` | [`auth_handler::register`] |
 
 use axum::{Router, routing::post};
 

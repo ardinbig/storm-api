@@ -2,9 +2,9 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `GET` | `/` | [`transaction_handler::list_transactions`](transaction_handler::list_transactions) |
-//! | `POST` | `/withdrawal` | [`transaction_handler::withdrawal`](transaction_handler::withdrawal) |
-//! | `GET` | `/by-agent/{agent_ref}` | [`transaction_handler::list_by_agent`](transaction_handler::list_by_agent) |
+//! | `GET` | `/` | [`transaction_handler::list_transactions`] |
+//! | `POST` | `/withdrawal` | [`transaction_handler::withdrawal`] |
+//! | `GET` | `/by-agent/{agent_ref}` | [`transaction_handler::list_by_agent`] |
 
 use axum::{
     Router,

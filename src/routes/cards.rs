@@ -2,10 +2,10 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `GET` | `/` | [`card_handler::list_cards`](card_handler::list_cards) |
-//! | `POST` | `/` | [`card_handler::create_card`](card_handler::create_card) |
-//! | `GET` | `/{id}` | [`card_handler::get_card`](card_handler::get_card) |
-//! | `POST` | `/{nfc_ref}/balance` | [`card_handler::check_balance`](card_handler::check_balance) |
+//! | `GET` | `/` | [`card_handler::list_cards`] |
+//! | `POST` | `/` | [`card_handler::create_card`] |
+//! | `GET` | `/{id}` | [`card_handler::get_card`] |
+//! | `POST` | `/{nfc_ref}/balance` | [`card_handler::check_balance`] |
 
 use axum::{
     Router,

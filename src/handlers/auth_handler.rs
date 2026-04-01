@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 
 use crate::{
-    errors::AppError,
+    errors::{AppError, ErrorResponse},
     models::user::{AuthResponse, LoginRequest, RegisterRequest, UserInfo},
     services::user_service,
     state::app_state::{AuthConfig, RedisPool},
@@ -15,6 +15,16 @@ use crate::{
 /// `POST /api/v1/auth/login`
 ///
 /// Authenticates a system user and returns a JWT.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/login",
+    tag = "Auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Login successful", body = AuthResponse),
+        (status = 401, description = "Invalid credentials", body = ErrorResponse),
+    ),
+)]
 pub async fn login(
     State(pool): State<PgPool>,
     State(config): State<Arc<AuthConfig>>,
@@ -29,6 +39,16 @@ pub async fn login(
 ///
 /// Creates a new system user account. Returns `201 Created` with the
 /// user profile (no password).
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/register",
+    tag = "Auth",
+    request_body = RegisterRequest,
+    responses(
+        (status = 201, description = "User created", body = UserInfo),
+        (status = 409, description = "Username already taken", body = ErrorResponse),
+    ),
+)]
 pub async fn register(
     State(pool): State<PgPool>,
     Json(input): Json<RegisterRequest>,
@@ -51,6 +71,16 @@ pub async fn register(
 /// Subsequent requests with this token will be rejected by the
 /// auth middleware. When Redis is unavailable the endpoint still returns
 /// `200` — the token will simply expire naturally.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/logout",
+    tag = "Auth",
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "Logged out — token blocklisted"),
+        (status = 401, description = "Unauthorized"),
+    ),
+)]
 pub async fn logout(
     State(config): State<Arc<AuthConfig>>,
     State(redis): State<RedisPool>,

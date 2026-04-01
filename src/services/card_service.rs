@@ -2,9 +2,9 @@
 //! balance checks.
 //!
 //! [`get_detail_by_nfc`] is a shared helper used by both this module and
-//! [`agent_service`](super::agent_service) to avoid duplicating the
+//! [`super::agent_service`] to avoid duplicating the
 //! `card_details` lookup query. When a [`RedisPool`] is provided, results
-//! are cached for [`CARD_DETAIL_TTL`] seconds.
+//! are cached for `CARD_DETAIL_TTL` seconds.
 
 use sqlx::PgPool;
 use uuid::Uuid;

@@ -1,6 +1,6 @@
 //! Convenience wrapper around Argon2 password hashing.
 //!
-//! Delegates to [`auth_service::hash_password`](auth_service::hash_password)
+//! Delegates to [`auth_service::hash_password`]
 //! and maps any hashing failure to [`AppError::Internal`].
 
 use crate::{errors::AppError, services::auth_service};

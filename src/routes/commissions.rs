@@ -2,9 +2,9 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `GET` | `/` | [`commission_handler::list_commissions`](commission_handler::list_commissions) |
-//! | `POST` | `/` | [`commission_handler::create_commission`](commission_handler::create_commission) |
-//! | `GET` | `/current` | [`commission_handler::get_current`](commission_handler::get_current) |
+//! | `GET` | `/` | [`commission_handler::list_commissions`] |
+//! | `POST` | `/` | [`commission_handler::create_commission`] |
+//! | `GET` | `/current` | [`commission_handler::get_current`] |
 
 use axum::{Router, routing::get};
 

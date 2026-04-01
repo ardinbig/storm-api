@@ -23,8 +23,8 @@ use utoipa::ToSchema;
 
 /// Application-wide error type.
 ///
-/// Each variant maps to a specific HTTP status code (see
-/// [`AppError::status_code`]). The [`Display`](std::fmt::Display)
+/// Each variant maps to a specific HTTP status code (see `status_code`).
+/// The [`Display`](std::fmt::Display)
 /// implementation (via `thiserror`) provides the readable message
 /// included in the JSON response body.
 #[derive(Debug, thiserror::Error)]
@@ -83,9 +83,9 @@ impl AppError {
 #[derive(Serialize, ToSchema)]
 pub struct ErrorResponse {
     /// Readable error description.
-    error: String,
+    pub error: String,
     /// Numeric HTTP status code echoed in the body.
-    code: u16,
+    pub code: u16,
 }
 
 /// Converts an [`AppError`] into an Axum [`Response`] containing a JSON

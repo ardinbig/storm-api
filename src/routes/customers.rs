@@ -2,12 +2,12 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `GET` | `/` | [`customer_handler::list_customers`](customer_handler::list_customers) |
-//! | `POST` | `/` | [`customer_handler::register`](customer_handler::register) |
-//! | `GET` | `/{id}` | [`customer_handler::get_customer`](customer_handler::get_customer) |
-//! | `PUT` | `/{id}` | [`customer_handler::update_customer`](customer_handler::update_customer) |
-//! | `DELETE` | `/{id}` | [`customer_handler::delete_customer`](customer_handler::delete_customer) |
-//! | `GET` | `/by-card/{card_id}` | [`customer_handler::get_by_card`](customer_handler::get_by_card) |
+//! | `GET` | `/` | [`customer_handler::list_customers`] |
+//! | `POST` | `/` | [`customer_handler::register`] |
+//! | `GET` | `/{id}` | [`customer_handler::get_customer`] |
+//! | `PUT` | `/{id}` | [`customer_handler::update_customer`] |
+//! | `DELETE` | `/{id}` | [`customer_handler::delete_customer`] |
+//! | `GET` | `/by-card/{card_id}` | [`customer_handler::get_by_card`] |
 
 use axum::{Router, routing::get};
 

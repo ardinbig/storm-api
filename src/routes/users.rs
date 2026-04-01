@@ -2,7 +2,7 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `GET` | `/me` | [`user_handler::me`](user_handler::me) |
+//! | `GET` | `/me` | [`user_handler::me`] |
 
 use axum::{Router, routing::get};
 
