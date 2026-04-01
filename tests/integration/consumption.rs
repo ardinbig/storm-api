@@ -1,50 +1,21 @@
-use crate::common::{body_to_value, register_and_login, test_config, test_state};
+use crate::common::{
+    body_to_value, create_test_app, create_test_app_with_token, register_and_login,
+    seed_card_with_customer, test_config,
+};
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
 };
 use serde_json::json;
 use sqlx::PgPool;
-use storm_api::app::create_app;
 use tower_service::Service;
-use uuid::Uuid;
-
-// Local helper
-// ============
-
-async fn seed_customer_for_consumption(pool: &PgPool) -> String {
-    let nfc = format!("NFC-CON-{}", &Uuid::new_v4().to_string()[..8]);
-    let client_code = format!("CC-CON-{}", &Uuid::new_v4().to_string()[..8]);
-    sqlx::query("INSERT INTO cards (id, card_id) VALUES ($1, $2)")
-        .bind(Uuid::new_v4())
-        .bind(&nfc)
-        .execute(pool)
-        .await
-        .unwrap();
-    sqlx::query(
-        "INSERT INTO customers (id, client_code, first_name, last_name, card_id)
-         VALUES ($1, $2, 'Consumption', 'Customer', $3)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(&client_code)
-    .bind(&nfc)
-    .execute(pool)
-    .await
-    .unwrap();
-    client_code
-}
-
-// Tests
-// =====
 
 #[sqlx::test]
 async fn create_and_list_consumptions(pool: PgPool) {
     let config = test_config();
     let token = register_and_login(&pool, &config).await;
-    let client_code = seed_customer_for_consumption(&pool).await;
-
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let client_code = seed_card_with_customer(&pool).await;
+    let mut app = create_test_app(pool);
 
     // Create
     let resp = app
@@ -105,10 +76,7 @@ async fn create_and_list_consumptions(pool: PgPool) {
 
 #[sqlx::test]
 async fn list_by_client_empty(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(

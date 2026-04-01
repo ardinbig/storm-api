@@ -1,10 +1,11 @@
-use testcontainers::runners::AsyncRunner;
+use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 
 /// Spin up a disposable container, connect via `create_pool`, and run a query.
 #[tokio::test]
 async fn create_pool_success() {
     let container = Postgres::default()
+        .with_tag("18-bookworm")
         .start()
         .await
         .expect("Failed to start container");
@@ -28,6 +29,7 @@ async fn create_pool_success() {
 #[serial_test::serial]
 async fn create_pool_with_max_connections_env() {
     let container = Postgres::default()
+        .with_tag("18-bookworm")
         .start()
         .await
         .expect("Failed to start container");

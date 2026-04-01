@@ -21,3 +21,6 @@ Thumbs.db
 
 # Docker overrides
 compose.override.yml
+
+# Coverage
+coverage/

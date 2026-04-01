@@ -1,11 +1,13 @@
-use crate::common::{body_to_value, register_and_login, test_config, test_state};
+use crate::common::{
+    body_to_value, create_test_app, create_test_app_with_token, register_and_login, seed_card,
+    test_config,
+};
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
 };
 use serde_json::json;
 use sqlx::PgPool;
-use storm_api::app::create_app;
 use tower_service::Service;
 use uuid::Uuid;
 
@@ -13,16 +15,8 @@ use uuid::Uuid;
 async fn register_customer_via_endpoint(pool: PgPool) {
     let config = test_config();
     let token = register_and_login(&pool, &config).await;
-
-    sqlx::query("INSERT INTO cards (id, card_id) VALUES ($1, $2)")
-        .bind(Uuid::new_v4())
-        .bind("NFC-REG-001")
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    seed_card(&pool, "NFC-REG-001").await;
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -52,10 +46,7 @@ async fn register_customer_via_endpoint(pool: PgPool) {
 
 #[sqlx::test]
 async fn list_customers_empty(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(
@@ -75,10 +66,7 @@ async fn list_customers_empty(pool: PgPool) {
 
 #[sqlx::test]
 async fn get_customer_not_found(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let id = Uuid::new_v4();
     let resp = app
@@ -97,10 +85,7 @@ async fn get_customer_not_found(pool: PgPool) {
 
 #[sqlx::test]
 async fn get_customer_by_card_not_found(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(
@@ -123,12 +108,7 @@ async fn update_and_delete_customer(pool: PgPool) {
 
     let customer_id = Uuid::new_v4();
     let card_id = "CARD-UPDATE-001";
-    sqlx::query("INSERT INTO cards (id, card_id) VALUES ($1, $2)")
-        .bind(Uuid::new_v4())
-        .bind(card_id)
-        .execute(&pool)
-        .await
-        .unwrap();
+    seed_card(&pool, card_id).await;
     sqlx::query(
         "INSERT INTO customers (id, client_code, first_name, last_name, phone, card_id)
          VALUES ($1, 'CUST-001', 'Old Firstname', 'Old Lastname', '000', $2)",
@@ -139,8 +119,7 @@ async fn update_and_delete_customer(pool: PgPool) {
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     // Get
     let resp = app
@@ -197,10 +176,7 @@ async fn update_and_delete_customer(pool: PgPool) {
 
 #[sqlx::test]
 async fn update_customer_not_found(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let id = Uuid::new_v4();
     let resp = app
@@ -211,11 +187,7 @@ async fn update_customer_not_found(pool: PgPool) {
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    json!({
-                        "first_name": "X",
-                        "last_name": "Y"
-                    })
-                    .to_string(),
+                    json!({ "first_name": "X", "last_name": "Y" }).to_string(),
                 ))
                 .unwrap(),
         )
@@ -227,10 +199,7 @@ async fn update_customer_not_found(pool: PgPool) {
 
 #[sqlx::test]
 async fn delete_customer_not_found(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let id = Uuid::new_v4();
     let resp = app
@@ -253,12 +222,7 @@ async fn get_customer_by_card_success(pool: PgPool) {
     let token = register_and_login(&pool, &config).await;
 
     let card_nfc = "NFC-BYCARD-001";
-    sqlx::query("INSERT INTO cards (id, card_id) VALUES ($1, $2)")
-        .bind(Uuid::new_v4())
-        .bind(card_nfc)
-        .execute(&pool)
-        .await
-        .unwrap();
+    seed_card(&pool, card_nfc).await;
     sqlx::query(
         "INSERT INTO customers (id, client_code, first_name, last_name, card_id)
          VALUES ($1, 'CC-001', 'ByCard', 'Customer', $2)",
@@ -269,8 +233,7 @@ async fn get_customer_by_card_success(pool: PgPool) {
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -295,12 +258,7 @@ async fn partial_update_preserves_unchanged_fields(pool: PgPool) {
 
     let customer_id = Uuid::new_v4();
     let card_id = "CARD-PARTIAL-001";
-    sqlx::query("INSERT INTO cards (id, card_id) VALUES ($1, $2)")
-        .bind(Uuid::new_v4())
-        .bind(card_id)
-        .execute(&pool)
-        .await
-        .unwrap();
+    seed_card(&pool, card_id).await;
     sqlx::query(
         "INSERT INTO customers (id, client_code, phone, first_name, last_name, card_id)
          VALUES ($1, 'PARTIAL-001', '0800000', 'OrigFirst', 'OrigLast', $2)",
@@ -311,8 +269,7 @@ async fn partial_update_preserves_unchanged_fields(pool: PgPool) {
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(

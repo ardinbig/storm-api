@@ -1,17 +1,15 @@
-use crate::common::{body_to_value, register_and_login, test_config, test_state};
+use crate::common::{body_to_value, create_test_app, create_test_app_with_token};
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
 };
 use serde_json::json;
 use sqlx::PgPool;
-use storm_api::app::create_app;
 use tower_service::Service;
 
 #[sqlx::test]
 async fn register_user(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -53,8 +51,7 @@ async fn login_user(pool: PgPool) {
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -90,8 +87,7 @@ async fn login_with_wrong_password(pool: PgPool) {
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -112,8 +108,7 @@ async fn login_with_wrong_password(pool: PgPool) {
 
 #[sqlx::test]
 async fn login_nonexistent_user(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -134,8 +129,7 @@ async fn login_nonexistent_user(pool: PgPool) {
 
 #[sqlx::test]
 async fn register_duplicate_username_returns_error(pool: PgPool) {
-    let state = test_state(pool.clone());
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let body = json!({
         "name": "First",
@@ -176,10 +170,7 @@ async fn register_duplicate_username_returns_error(pool: PgPool) {
 
 #[sqlx::test]
 async fn logout_returns_ok_with_valid_token_without_redis(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(
@@ -198,8 +189,7 @@ async fn logout_returns_ok_with_valid_token_without_redis(pool: PgPool) {
 
 #[sqlx::test]
 async fn logout_rejects_missing_authorization_header(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -217,8 +207,7 @@ async fn logout_rejects_missing_authorization_header(pool: PgPool) {
 
 #[sqlx::test]
 async fn logout_rejects_malformed_authorization_header(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -237,8 +226,7 @@ async fn logout_rejects_malformed_authorization_header(pool: PgPool) {
 
 #[sqlx::test]
 async fn logout_rejects_invalid_bearer_token(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -257,10 +245,7 @@ async fn logout_rejects_invalid_bearer_token(pool: PgPool) {
 
 #[sqlx::test]
 async fn logout_does_not_revoke_token_when_redis_disabled(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let logout = app
         .call(
