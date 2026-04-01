@@ -2,9 +2,9 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `GET` | `/` | [`consumption_handler::list_consumptions`](consumption_handler::list_consumptions) |
-//! | `POST` | `/` | [`consumption_handler::create`](consumption_handler::create) |
-//! | `GET` | `/by-client/{client_ref}` | [`consumption_handler::list_by_client`](consumption_handler::list_by_client) |
+//! | `GET` | `/` | [`consumption_handler::list_consumptions`] |
+//! | `POST` | `/` | [`consumption_handler::create`] |
+//! | `GET` | `/by-client/{client_ref}` | [`consumption_handler::list_by_client`] |
 
 use axum::{Router, routing::get};
 

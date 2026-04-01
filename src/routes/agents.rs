@@ -2,14 +2,14 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `GET` | `/` | [`agent_handler::list_agents`](agent_handler::list_agents) |
-//! | `POST` | `/` | [`agent_handler::create_agent`](agent_handler::create_agent) |
-//! | `GET` | `/{id}` | [`agent_handler::get_agent`](agent_handler::get_agent) |
-//! | `DELETE` | `/{id}` | [`agent_handler::delete_agent`](agent_handler::delete_agent) |
-//! | `GET` | `/cards/{card_id}/balance` | [`agent_handler::check_balance`](agent_handler::check_balance) |
-//! | `GET` | `/{agent_id}/history` | [`agent_handler::history`](agent_handler::history) |
-//! | `POST` | `/customers` | [`agent_handler::register_customer`](agent_handler::register_customer) |
-//! | `PUT` | `/password` | [`agent_handler::update_password`](agent_handler::update_password) |
+//! | `GET` | `/` | [`agent_handler::list_agents`] |
+//! | `POST` | `/` | [`agent_handler::create_agent`] |
+//! | `GET` | `/{id}` | [`agent_handler::get_agent`] |
+//! | `DELETE` | `/{id}` | [`agent_handler::delete_agent`] |
+//! | `GET` | `/cards/{card_id}/balance` | [`agent_handler::check_balance`] |
+//! | `GET` | `/{agent_id}/history` | [`agent_handler::history`] |
+//! | `POST` | `/customers` | [`agent_handler::register_customer`] |
+//! | `PUT` | `/password` | [`agent_handler::update_password`] |
 
 use axum::{
     Router,

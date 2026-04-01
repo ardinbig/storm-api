@@ -29,9 +29,8 @@ const SELECT_ALL: &str = "SELECT id, agent_ref, name, password, balance, currenc
 const SELECT_BY_ID: &str = "SELECT id, agent_ref, name, password, balance, currency_code FROM agent_accounts WHERE id = $1";
 const SELECT_BY_REF: &str = "SELECT id, agent_ref, name, password, balance, currency_code FROM agent_accounts WHERE agent_ref = $1";
 
-// ---------------------------------------------------------------------------
 // Private helpers
-// ---------------------------------------------------------------------------
+// ===============
 
 /// Looks up an agent by `agent_ref`, verifies the supplied password, and
 /// returns the full [`Agent`] row.
@@ -58,10 +57,6 @@ async fn fetch_and_verify(
 
     Ok(agent)
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 /// Returns all agent accounts ordered by `agent_ref`.
 ///

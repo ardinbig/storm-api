@@ -1,20 +1,16 @@
-use crate::common::{body_to_value, register_and_login, test_config, test_state};
+use crate::common::{body_to_value, create_test_app_with_token};
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
 };
 use serde_json::json;
 use sqlx::PgPool;
-use storm_api::app::create_app;
 use tower_service::Service;
 use uuid::Uuid;
 
 #[sqlx::test(fixtures(path = "../../fixtures", scripts("seed_categories")))]
 async fn list_categories(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(
@@ -35,10 +31,7 @@ async fn list_categories(pool: PgPool) {
 
 #[sqlx::test(fixtures(path = "../../fixtures", scripts("seed_categories")))]
 async fn get_category_by_id(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(
@@ -58,10 +51,7 @@ async fn get_category_by_id(pool: PgPool) {
 
 #[sqlx::test]
 async fn get_category_not_found(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let id = Uuid::new_v4();
     let resp = app
@@ -80,10 +70,7 @@ async fn get_category_not_found(pool: PgPool) {
 
 #[sqlx::test]
 async fn create_category(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(

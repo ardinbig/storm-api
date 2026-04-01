@@ -2,9 +2,9 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `GET` | `/` | [`commission_tier_handler::list_tiers`](commission_tier_handler::list_tiers) |
-//! | `POST` | `/` | [`commission_tier_handler::create_tier`](commission_tier_handler::create_tier) |
-//! | `GET` | `/by-category/{category}` | [`commission_tier_handler::get_by_category`](commission_tier_handler::get_by_category) |
+//! | `GET` | `/` | [`commission_tier_handler::list_tiers`] |
+//! | `POST` | `/` | [`commission_tier_handler::create_tier`] |
+//! | `GET` | `/by-category/{category}` | [`commission_tier_handler::get_by_category`] |
 
 use axum::{Router, routing::get};
 

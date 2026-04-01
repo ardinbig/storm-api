@@ -17,6 +17,14 @@ pub struct MetricsResponse {
 /// `GET /health`
 ///
 /// Simple liveness probe — always returns `"OK"`.
+#[utoipa::path(
+    get,
+    path = "/health",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Service is alive", body = String, example = json!("OK")),
+    ),
+)]
 pub async fn health() -> &'static str {
     "OK"
 }
@@ -26,6 +34,15 @@ pub async fn health() -> &'static str {
 /// Readiness probe.  Returns `"ready"` (`200`) while the application is
 /// accepting traffic, or `"not ready"` (`503`) after a shutdown signal has
 /// been received.
+#[utoipa::path(
+    get,
+    path = "/ready",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Service is ready", body = String, example = json!("ready")),
+        (status = 503, description = "Service is shutting down", body = String, example = json!("not ready")),
+    ),
+)]
 pub async fn ready(
     State(state): State<AppState>,
 ) -> Result<&'static str, (StatusCode, &'static str)> {
@@ -40,6 +57,14 @@ pub async fn ready(
 ///
 /// Returns a JSON object with the total number of requests handled since
 /// the server started.
+#[utoipa::path(
+    get,
+    path = "/metrics",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Request counter", body = MetricsResponse),
+    ),
+)]
 pub async fn metrics(State(state): State<AppState>) -> Json<MetricsResponse> {
     Json(MetricsResponse {
         requests: state.request_count.load(Ordering::Relaxed),

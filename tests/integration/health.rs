@@ -1,16 +1,14 @@
-use crate::common::{body_to_string, body_to_value, test_state};
+use crate::common::{body_to_string, body_to_value, create_test_app};
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
 use sqlx::PgPool;
-use storm_api::app::create_app;
 use tower_service::Service;
 
 #[sqlx::test]
 async fn health_returns_ok(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -28,8 +26,7 @@ async fn health_returns_ok(pool: PgPool) {
 
 #[sqlx::test]
 async fn ready_returns_ok(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -47,11 +44,11 @@ async fn ready_returns_ok(pool: PgPool) {
 
 #[sqlx::test]
 async fn ready_returns_unavailable_when_not_ready(pool: PgPool) {
-    let state = test_state(pool);
+    let state = crate::common::test_state(pool);
     state
         .ready
         .store(false, std::sync::atomic::Ordering::SeqCst);
-    let mut app = create_app(state);
+    let mut app = storm_api::app::create_app(state);
 
     let resp = app
         .call(
@@ -68,8 +65,7 @@ async fn ready_returns_unavailable_when_not_ready(pool: PgPool) {
 
 #[sqlx::test]
 async fn metrics_returns_json(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -88,8 +84,7 @@ async fn metrics_returns_json(pool: PgPool) {
 
 #[sqlx::test]
 async fn not_found_returns_404(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(

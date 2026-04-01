@@ -9,3 +9,4 @@ compose.override.yml
 *.md
 !README.md
 tests/
+coverage/

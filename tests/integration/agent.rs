@@ -1,5 +1,6 @@
 use crate::common::{
-    body_to_value, register_and_login, seed_house_account, test_config, test_state,
+    body_to_value, create_test_app, create_test_app_with_token, register_and_login, seed_agent,
+    seed_card, seed_house_account, test_config,
 };
 use axum::{
     body::Body,
@@ -7,37 +8,16 @@ use axum::{
 };
 use serde_json::json;
 use sqlx::PgPool;
-use storm_api::app::create_app;
 use tower_service::Service;
 use uuid::Uuid;
-
-// Local helper
-// ============
-
-async fn create_agent_in_db(pool: &PgPool, agent_ref: &str) -> Uuid {
-    let id = Uuid::new_v4();
-    let hash = storm_api::services::auth_service::hash_password("agent.pass").unwrap();
-    sqlx::query(
-        "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
-         VALUES ($1, $2, 'Test Agent', $3, 1000, 'CDF')",
-    )
-    .bind(id)
-    .bind(agent_ref)
-    .bind(&hash)
-    .execute(pool)
-    .await
-    .unwrap();
-    id
-}
 
 // Agent login
 // ===========
 
 #[sqlx::test]
 async fn agent_login_success(pool: PgPool) {
-    create_agent_in_db(&pool, "AGENT-001").await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    seed_agent(&pool, "AGENT-001", "Test Agent", "agent.pass", 1000.0).await;
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -61,9 +41,8 @@ async fn agent_login_success(pool: PgPool) {
 
 #[sqlx::test]
 async fn agent_login_wrong_password(pool: PgPool) {
-    create_agent_in_db(&pool, "AGENT-002").await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    seed_agent(&pool, "AGENT-002", "Test Agent", "agent.pass", 0.0).await;
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -84,8 +63,7 @@ async fn agent_login_wrong_password(pool: PgPool) {
 
 #[sqlx::test]
 async fn agent_login_nonexistent(pool: PgPool) {
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -106,18 +84,16 @@ async fn agent_login_nonexistent(pool: PgPool) {
 
 #[sqlx::test]
 async fn agent_login_no_password_in_db(pool: PgPool) {
-    let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
          VALUES ($1, 'AGENT-NO.PASS', 'No Pass Agent', NULL, 0, 'CDF')",
     )
-    .bind(id)
+    .bind(Uuid::new_v4())
     .execute(&pool)
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -141,10 +117,7 @@ async fn agent_login_no_password_in_db(pool: PgPool) {
 
 #[sqlx::test]
 async fn list_create_get_delete_agent(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     // List (empty)
     let resp = app
@@ -215,16 +188,12 @@ async fn list_create_get_delete_agent(pool: PgPool) {
 
 #[sqlx::test]
 async fn get_agent_not_found(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
-    let id = Uuid::new_v4();
     let resp = app
         .call(
             Request::builder()
-                .uri(format!("/api/v1/agents/{id}"))
+                .uri(format!("/api/v1/agents/{}", Uuid::new_v4()))
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -236,17 +205,13 @@ async fn get_agent_not_found(pool: PgPool) {
 
 #[sqlx::test]
 async fn delete_agent_not_found(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
-    let id = Uuid::new_v4();
     let resp = app
         .call(
             Request::builder()
                 .method("DELETE")
-                .uri(format!("/api/v1/agents/{id}"))
+                .uri(format!("/api/v1/agents/{}", Uuid::new_v4()))
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -270,8 +235,7 @@ async fn cannot_delete_house_account(pool: PgPool) {
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -292,10 +256,7 @@ async fn cannot_delete_house_account(pool: PgPool) {
 
 #[sqlx::test]
 async fn agent_check_balance_not_found(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(
@@ -316,12 +277,7 @@ async fn agent_check_balance_success(pool: PgPool) {
     let token = register_and_login(&pool, &config).await;
 
     let nfc = "NFC-BAL-001";
-    sqlx::query("INSERT INTO cards (id, card_id) VALUES ($1, $2)")
-        .bind(Uuid::new_v4())
-        .bind(nfc)
-        .execute(&pool)
-        .await
-        .unwrap();
+    seed_card(&pool, nfc).await;
     let hash = storm_api::services::auth_service::hash_password("card.pass").unwrap();
     sqlx::query(
         "INSERT INTO card_details (nfc_ref, client_code, password, amount)
@@ -333,8 +289,7 @@ async fn agent_check_balance_success(pool: PgPool) {
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -353,10 +308,7 @@ async fn agent_check_balance_success(pool: PgPool) {
 
 #[sqlx::test]
 async fn agent_history_empty(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(
@@ -377,16 +329,8 @@ async fn agent_history_empty(pool: PgPool) {
 async fn agent_register_customer(pool: PgPool) {
     let config = test_config();
     let token = register_and_login(&pool, &config).await;
-
-    sqlx::query("INSERT INTO cards (id, card_id) VALUES ($1, $2)")
-        .bind(Uuid::new_v4())
-        .bind("NFC-ARES-001")
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    seed_card(&pool, "NFC-ARES-001").await;
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -418,12 +362,7 @@ async fn agent_register_customer_card_conflict(pool: PgPool) {
     let token = register_and_login(&pool, &config).await;
 
     let nfc = "NFC-CONFLICT-001";
-    sqlx::query("INSERT INTO cards (id, card_id) VALUES ($1, $2)")
-        .bind(Uuid::new_v4())
-        .bind(nfc)
-        .execute(&pool)
-        .await
-        .unwrap();
+    seed_card(&pool, nfc).await;
     sqlx::query(
         "INSERT INTO card_details (nfc_ref, client_code, password)
          VALUES ($1, 'REG-CONF', 'hash')",
@@ -433,8 +372,7 @@ async fn agent_register_customer_card_conflict(pool: PgPool) {
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -467,10 +405,8 @@ async fn agent_register_customer_card_conflict(pool: PgPool) {
 async fn agent_update_password(pool: PgPool) {
     let config = test_config();
     let token = register_and_login(&pool, &config).await;
-    create_agent_in_db(&pool, "AGENT-PWD").await;
-
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    seed_agent(&pool, "AGENT-PWD", "Test Agent", "agent.pass", 0.0).await;
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -498,10 +434,8 @@ async fn agent_update_password(pool: PgPool) {
 async fn agent_update_password_wrong_old(pool: PgPool) {
     let config = test_config();
     let token = register_and_login(&pool, &config).await;
-    create_agent_in_db(&pool, "AGENT-PWD.BAD").await;
-
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    seed_agent(&pool, "AGENT-PWD.BAD", "Test Agent", "agent.pass", 0.0).await;
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -527,11 +461,7 @@ async fn agent_update_password_wrong_old(pool: PgPool) {
 
 #[sqlx::test]
 async fn agent_update_password_nonexistent(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(
@@ -560,18 +490,16 @@ async fn agent_update_password_null_stored(pool: PgPool) {
     let config = test_config();
     let token = register_and_login(&pool, &config).await;
 
-    let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
          VALUES ($1, 'AGENT-NULL.PW', 'Null Pw', NULL, 0, 'CDF')",
     )
-    .bind(id)
+    .bind(Uuid::new_v4())
     .execute(&pool)
     .await
     .unwrap();
 
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let mut app = create_test_app(pool);
 
     let resp = app
         .call(
@@ -597,10 +525,7 @@ async fn agent_update_password_null_stored(pool: PgPool) {
 
 #[sqlx::test]
 async fn create_agent_with_custom_currency(pool: PgPool) {
-    let config = test_config();
-    let token = register_and_login(&pool, &config).await;
-    let state = test_state(pool);
-    let mut app = create_app(state);
+    let (mut app, token) = create_test_app_with_token(pool).await;
 
     let resp = app
         .call(

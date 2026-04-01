@@ -8,7 +8,7 @@ use axum::{
 use sqlx::PgPool;
 
 use crate::{
-    errors::AppError,
+    errors::{AppError, ErrorResponse},
     models::consumption::{Consumption, CreateConsumptionRequest},
     services::consumption_service,
 };
@@ -16,6 +16,16 @@ use crate::{
 /// `GET /api/v1/consumptions`
 ///
 /// Lists all fuel consumption records.
+#[utoipa::path(
+    get,
+    path = "/api/v1/consumptions",
+    tag = "Consumptions",
+    security(("bearer" = [])),
+    responses(
+        (status = 200, description = "List of consumptions", body = Vec<Consumption>),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+    ),
+)]
 pub async fn list_consumptions(
     State(pool): State<PgPool>,
 ) -> Result<Json<Vec<Consumption>>, AppError> {
@@ -26,6 +36,18 @@ pub async fn list_consumptions(
 /// `GET /api/v1/consumptions/by-client/{client_ref}`
 ///
 /// Lists consumptions for a specific client.
+#[utoipa::path(
+    get,
+    path = "/api/v1/consumptions/by-client/{client_ref}",
+    tag = "Consumptions",
+    security(("bearer" = [])),
+    params(
+        ("client_ref" = String, Path, description = "Client reference code"),
+    ),
+    responses(
+        (status = 200, description = "Client consumptions", body = Vec<Consumption>),
+    ),
+)]
 pub async fn list_by_client(
     State(pool): State<PgPool>,
     Path(client_ref): Path<String>,
@@ -37,6 +59,17 @@ pub async fn list_by_client(
 /// `POST /api/v1/consumptions`
 ///
 /// Records a new fuel consumption event. Returns `201 Created`.
+#[utoipa::path(
+    post,
+    path = "/api/v1/consumptions",
+    tag = "Consumptions",
+    security(("bearer" = [])),
+    request_body = CreateConsumptionRequest,
+    responses(
+        (status = 201, description = "Consumption recorded", body = ()),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+    ),
+)]
 pub async fn create(
     State(pool): State<PgPool>,
     Json(input): Json<CreateConsumptionRequest>,

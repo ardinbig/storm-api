@@ -39,7 +39,7 @@ async fn seed_withdrawal_data(pool: &PgPool) -> (String, String) {
 
     // The card_details row will be inserted by the trigger on customers insert.
     // Optionally, update the password and amount if needed:
-    let hash = storm_api::services::auth_service::hash_password("wdpass").unwrap();
+    let hash = storm_api::services::auth_service::hash_password("wd.pass").unwrap();
     sqlx::query("UPDATE card_details SET password = $1, amount = 10000 WHERE nfc_ref = $2")
         .bind(&hash)
         .bind(nfc)
@@ -47,7 +47,7 @@ async fn seed_withdrawal_data(pool: &PgPool) -> (String, String) {
         .await
         .unwrap();
 
-    let agent_hash = storm_api::services::auth_service::hash_password("agentpw").unwrap();
+    let agent_hash = storm_api::services::auth_service::hash_password("agent.pw").unwrap();
     sqlx::query(
         "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
          VALUES ($1, $2, 'WD Agent', $3, 500, 'CDF')",
@@ -93,7 +93,7 @@ async fn withdrawal_success(pool: PgPool) {
                     json!({
                         "client_code": nfc,
                         "withdrawal_amount": 100.0,
-                        "client_password": "wdpass",
+                        "client_password": "wd.pass",
                         "agent_code": agent_ref,
                         "currency_type": "CDF"
                     })
@@ -194,7 +194,7 @@ async fn withdrawal_agent_not_found(pool: PgPool) {
                     json!({
                         "client_code": nfc,
                         "withdrawal_amount": 10.0,
-                        "client_password": "wdpass",
+                        "client_password": "wd.pass",
                         "agent_code": "GHOST-AGENT",
                         "currency_type": "CDF"
                     })
@@ -227,7 +227,7 @@ async fn withdrawal_insufficient_balance(pool: PgPool) {
                     json!({
                         "client_code": nfc,
                         "withdrawal_amount": 999999.0,
-                        "client_password": "wdpass",
+                        "client_password": "wd.pass",
                         "agent_code": agent_ref,
                         "currency_type": "CDF"
                     })
@@ -423,7 +423,7 @@ async fn withdrawal_then_balance_reflects_deduction(pool: PgPool) {
                     json!({
                         "client_code": nfc,
                         "withdrawal_amount": 200.0,
-                        "client_password": "wdpass",
+                        "client_password": "wd.pass",
                         "agent_code": agent_ref,
                         "currency_type": "CDF"
                     })
@@ -435,7 +435,7 @@ async fn withdrawal_then_balance_reflects_deduction(pool: PgPool) {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let card = storm_api::services::card_service::check_balance(&pool, &nfc, "wdpass")
+    let card = storm_api::services::card_service::check_balance(&pool, &nfc, "wd.pass")
         .await
         .unwrap();
     let expected = 10000.0 - 200.0 - (200.0 * 5.0 / 100.0);
@@ -462,7 +462,7 @@ async fn list_by_agent_after_withdrawal(pool: PgPool) {
                     json!({
                         "client_code": nfc,
                         "withdrawal_amount": 50.0,
-                        "client_password": "wdpass",
+                        "client_password": "wd.pass",
                         "agent_code": agent_ref,
                         "currency_type": "CDF"
                     })

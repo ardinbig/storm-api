@@ -2,7 +2,7 @@
 //!
 //! The most recent price per `consumption_type` is considered the current
 //! price. When a [`RedisPool`] is provided, `get_by_type` results are
-//! cached for [`PRICE_TTL`] seconds and invalidated on `create`.
+//! cached for `PRICE_TTL` seconds and invalidated on `create`.
 
 use sqlx::PgPool;
 use uuid::Uuid;

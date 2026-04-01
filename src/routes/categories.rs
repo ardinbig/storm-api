@@ -2,9 +2,9 @@
 //!
 //! | Method | Path | Handler |
 //! |--------|------|---------|
-//! | `GET` | `/` | [`category_handler::list_categories`](category_handler::list_categories) |
-//! | `POST` | `/` | [`category_handler::create_category`](category_handler::create_category) |
-//! | `GET` | `/{id}` | [`category_handler::get_category`](category_handler::get_category) |
+//! | `GET` | `/` | [`category_handler::list_categories`] |
+//! | `POST` | `/` | [`category_handler::create_category`] |
+//! | `GET` | `/{id}` | [`category_handler::get_category`] |
 
 use axum::{Router, routing::get};
 
