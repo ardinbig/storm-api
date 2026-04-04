@@ -14,41 +14,33 @@
 ## Features
 
 ### Auth & Security
-- Dual JWT auth flows for system users and field agents, each issuing role-scoped tokens.
-- Argon2id password hashing for all credentials; never stored plaintext.
-- JWT revocation via Redis blocklist - logout stores the token for its remaining TTL; middleware rejects it immediately.
+- Dual JWT auth flows with Argon2id password hashing.
+- JWT revocation via Redis blocklist.
 
 ### Cards & Customers
-- NFC card registry with lifecycle status tracking and PIN-protected balance checks.
-- Customer profiles with full CRUD, NFC card linkage, category assignment, and lookup by card.
+- NFC card registry with PIN-protected balance checks.
+- Customer profiles with card linkage and category assignment.
 
 ### Agents & Transactions
-- Agent accounts with balance and currency tracking, transaction history, and self-service password change.
-- Agent-led customer registration - assign an NFC card and create a customer profile in one request.
-- Cash withdrawal flow - verifies card PIN, deducts amount + commission, credits the agent, and splits the fee to the house account.
-- Append-only commission rate history - most recently created row is the active rate.
-- House account protected from deletion; receives all withdrawal commissions.
+- Agent account management with transaction history.
+- Agent-led customer registration with NFC card assignment.
+- Cash withdrawal with PIN verification, commission split, and house account tracking.
+- Configurable commission tier history with L-1 and L-2 MLM bonuses.
 
 ### Fuel & Loyalty
-- Fuel consumption logging with client reference, fuel type, quantity, unit price, operator, and timestamp.
-- 2-level MLM loyalty bonus via PostgreSQL trigger (`fn_consumption_bonus_tree`) fired on every consumption insert.
-- Commission tiers with configurable L-1 and L-2 bonus percentages, optionally scoped per vehicle category.
-- Fuel pricing per type with full history - most recent row per type is the current price.
+- Fuel consumption logging with pricing per type.
+- 2-level MLM bonus via PostgreSQL trigger on consumption.
 
 ### Observability & Operations
-- Middleware stack: atomic request counter, structured tracing, gzip compression, 30s timeout, CORS, JWT auth.
-- Request counter exposed at `GET /metrics` as `{ "requests": N }`.
-- Liveness probe at `GET /health`; readiness probe at `GET /ready` - returns `503` after a shutdown signal.
-- Graceful shutdown on `SIGTERM` / `Ctrl+C` with a 5 seconds in-flight drain window.
-- Unified error responses - all `AppError` variants serialized as `{ "error": "…", "code": N }`.
-- Structured JSON logging via `tracing` with `RUST_LOG` environment-driven filtering.
+- Request counter, tracing, gzip, 30s timeout, CORS, JWT auth.
+- Health probes: `/health` (liveness), `/ready` (readiness), `/metrics` (counter).
+- Graceful shutdown on `SIGTERM` with 5s drain window.
+- Structured JSON logging via `tracing`.
 
 ### Developer Experience
-- OpenAPI 3.0 spec generated at compile time with `utoipa`; served as JSON at `/api-doc/openapi.json`.
-- Swagger UI at `/api/v1/docs` pre-configured with Bearer JWT security scheme.
-- Three-tier test suite - unit (no I/O), integration (real PostgreSQL + Redis via `sqlx::test`), and end-to-end.
-- ≥ 80 % line coverage enforced in CI via `cargo-llvm-cov`; report uploaded to Codecov.
-- GitHub Actions pipeline: lint → unit → integration → coverage → release build.
+- OpenAPI 3.0 with Swagger UI at `/api/v1/docs`.
+- Three-tier tests (unit, integration, e2e) with ≥80% coverage enforced.
+- GitHub Actions CI pipeline.
 
 ---
 
@@ -57,12 +49,20 @@
 **Prerequisites:** [Rust toolchain](https://www.rust-lang.org/tools/install), [Docker](https://docs.docker.com/get-docker/), `sqlx-cli`.
 
 ```bash
+# Install sqlx-cli for database migrations
 cargo install sqlx-cli --no-default-features --features rustls,postgres
 
+# Clone the repository and set up environment
 git clone https://github.com/ardinbig/storm-api.git && cd storm-api
 cp .env.example .env
+
+# Start PostgreSQL and Redis services
 docker compose up -d database redis
+
+# Run database migrations
 sqlx migrate run --source migrations
+
+# Build and run the API server
 cargo run
 ```
 
@@ -111,7 +111,7 @@ storm-api/
   1. Request Counter  — feeds /metrics             
   2. Tracing          — structured JSON logs       
   3. Compression      — gzip                       
-  4. Timeout          — 408 after 30 s        
+  4. Timeout          — 408 after 30s        
   5. CORS             — cross-origin policy   
   6. Auth             — JWT → CurrentUser     
                        (protected routes)     
@@ -152,9 +152,16 @@ storm-api/
 ## Development
 
 ```bash
+# Format code according to Rust conventions
 cargo fmt --all
+
+# Lint check for code quality and best practices
 cargo clippy --all-targets --all-features -- -D warnings
+
+# Run all tests (unit, integration, e2e)
 cargo test --locked
+
+# Build and start all services with Docker
 docker compose up --build 
 ```
 
