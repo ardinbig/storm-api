@@ -18,6 +18,7 @@ use crate::{
 #[utoipa::path(
     post,
     path = "/api/v1/auth/login",
+    operation_id = "auth_login",
     tag = "Auth",
     request_body = LoginRequest,
     responses(

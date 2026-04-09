@@ -13,7 +13,7 @@ use crate::{
     models::agent::{
         Agent, AgentAuthResponse, AgentHistoryRow, AgentInfo, AgentLoginRequest,
         AgentRegisterCustomerRequest, CreateAgentRequest, DEFAULT_NETWORK, HOUSE_ACCOUNT_REF,
-        UpdateAgentPasswordRequest,
+        UpdateAgentPasswordRequest, UpdateAgentRequest,
     },
     models::card::CardDetail,
     services::{auth_service, card_service},
@@ -118,6 +118,37 @@ pub async fn create(pool: &PgPool, input: &CreateAgentRequest) -> Result<AgentIn
     Ok(AgentInfo::from(agent))
 }
 
+/// Partially updates an agent account.
+///
+/// Only non-`None` fields in `input` are applied; existing values are
+/// preserved via `COALESCE`.
+///
+/// # Errors
+///
+/// - [`AppError::NotFound`] — no agent with this `id`.
+/// - [`AppError::Database`] — query failure.
+pub async fn update(
+    pool: &PgPool,
+    id: Uuid,
+    input: &UpdateAgentRequest,
+) -> Result<AgentInfo, AppError> {
+    let agent = sqlx::query_as::<_, Agent>(&format!(
+        "UPDATE agent_accounts SET
+            name = COALESCE($2, name),
+            currency_code = COALESCE($3, currency_code)
+         WHERE id = $1
+         RETURNING {AGENT_COLUMNS}"
+    ))
+    .bind(id)
+    .bind(input.name.as_ref())
+    .bind(input.currency_code.as_ref())
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Agent not found".into()))?;
+
+    Ok(AgentInfo::from(agent))
+}
+
 /// Deletes an agent account by primary key.
 ///
 /// The house account ([`HOUSE_ACCOUNT_REF`]) cannot be deleted.
@@ -158,7 +189,7 @@ pub async fn delete(pool: &PgPool, id: Uuid) -> Result<(), AppError> {
 ///
 /// - [`AppError::Unauthorized`] — bad credentials.
 /// - [`AppError::Internal`] — JWT signing failure.
-pub async fn login(
+pub async fn authenticate(
     pool: &PgPool,
     config: &AuthConfig,
     input: &AgentLoginRequest,

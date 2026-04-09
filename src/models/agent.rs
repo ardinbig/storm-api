@@ -153,3 +153,15 @@ pub struct CreateAgentRequest {
     /// ISO currency code; defaults to `"CDF"` when omitted.
     pub currency_code: Option<String>,
 }
+
+/// Request body for `PATCH /api/v1/agents/{id}`.
+///
+/// All fields are optional; only non-`None` values will be applied to the
+/// existing record via `COALESCE`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateAgentRequest {
+    /// Display name.
+    pub name: Option<String>,
+    /// ISO currency code.
+    pub currency_code: Option<String>,
+}

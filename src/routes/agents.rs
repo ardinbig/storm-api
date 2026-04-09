@@ -4,6 +4,7 @@
 //! |--------|------|---------|
 //! | `GET` | `/` | [`agent_handler::list_agents`] |
 //! | `POST` | `/` | [`agent_handler::create_agent`] |
+//! | `PATCH` | `/{id}` | [`agent_handler::update_agent`] |
 //! | `GET` | `/{id}` | [`agent_handler::get_agent`] |
 //! | `DELETE` | `/{id}` | [`agent_handler::delete_agent`] |
 //! | `GET` | `/cards/{card_id}/balance` | [`agent_handler::check_balance`] |
@@ -27,7 +28,9 @@ pub fn routes() -> Router<AppState> {
         )
         .route(
             "/{id}",
-            get(agent_handler::get_agent).delete(agent_handler::delete_agent),
+            get(agent_handler::get_agent)
+                .patch(agent_handler::update_agent)
+                .delete(agent_handler::delete_agent),
         )
         .route(
             "/cards/{card_id}/balance",

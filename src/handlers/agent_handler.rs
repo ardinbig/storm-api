@@ -16,6 +16,7 @@ use crate::{
         agent::{
             AgentAuthResponse, AgentHistoryRow, AgentInfo, AgentLoginRequest,
             AgentRegisterCustomerRequest, CreateAgentRequest, UpdateAgentPasswordRequest,
+            UpdateAgentRequest,
         },
         card::CardDetail,
     },
@@ -87,6 +88,32 @@ pub async fn create_agent(
     Ok((StatusCode::CREATED, Json(agent)))
 }
 
+/// `PATCH /api/v1/agents/{id}`
+///
+/// Partially updates an agent account.
+#[utoipa::path(
+    patch,
+    path = "/api/v1/agents/{id}",
+    tag = "Agents",
+    security(("bearer" = [])),
+    params(
+        ("id" = Uuid, Path, description = "Agent UUID"),
+    ),
+    request_body = UpdateAgentRequest,
+    responses(
+        (status = 200, description = "Agent updated", body = AgentInfo),
+        (status = 404, description = "Agent not found", body = ErrorResponse),
+    ),
+)]
+pub async fn update_agent(
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(input): Json<UpdateAgentRequest>,
+) -> Result<Json<AgentInfo>, AppError> {
+    let agent = agent_service::update(&pool, id, &input).await?;
+    Ok(Json(agent))
+}
+
 /// `DELETE /api/v1/agents/{id}`
 ///
 /// Deletes an agent account. Returns `204 No Content`.
@@ -118,6 +145,7 @@ pub async fn delete_agent(
 #[utoipa::path(
     post,
     path = "/api/v1/agents/login",
+    operation_id = "agent_login",
     tag = "Agents",
     request_body = AgentLoginRequest,
     responses(
@@ -130,7 +158,7 @@ pub async fn login(
     State(config): State<Arc<AuthConfig>>,
     Json(input): Json<AgentLoginRequest>,
 ) -> Result<Json<AgentAuthResponse>, AppError> {
-    let response = agent_service::login(&pool, &config, &input).await?;
+    let response = agent_service::authenticate(&pool, &config, &input).await?;
     Ok(Json(response))
 }
 

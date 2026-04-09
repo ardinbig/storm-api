@@ -45,6 +45,7 @@ use crate::{
         agent::{
             AgentAuthResponse, AgentHistoryRow, AgentInfo, AgentLoginRequest,
             AgentRegisterCustomerRequest, CreateAgentRequest, UpdateAgentPasswordRequest,
+            UpdateAgentRequest,
         },
         card::{BalanceCheckRequest, BalanceResponse, Card, CardDetail, CreateCardRequest},
         category::{Category, CreateCategoryRequest},
@@ -73,7 +74,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 #[openapi(
     info(
         title = "Storm API",
-        version = "0.1.0",
+        version = "0.1.1",
         description = "Fuel station management REST API — NFC card balances, agent withdrawals with commission, fuel consumption logging, and MLM loyalty bonuses.",
     ),
     paths(
@@ -91,6 +92,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
         agent_handler::list_agents,
         agent_handler::get_agent,
         agent_handler::create_agent,
+        agent_handler::update_agent,
         agent_handler::delete_agent,
         agent_handler::login,
         agent_handler::check_balance,
@@ -142,6 +144,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
             LoginRequest, RegisterRequest, AuthResponse, UserInfo, MeResponse,
             // Agent
             AgentLoginRequest, CreateAgentRequest, UpdateAgentPasswordRequest,
+            UpdateAgentRequest,
             AgentRegisterCustomerRequest, AgentAuthResponse, AgentInfo, AgentHistoryRow,
             // Card
             Card, CardDetail, CreateCardRequest, BalanceCheckRequest, BalanceResponse,

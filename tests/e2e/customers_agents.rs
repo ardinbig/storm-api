@@ -108,6 +108,18 @@ async fn e2e_agent_crud_and_login() {
         .await;
     assert_eq!(resp.status(), 200);
 
+    // Patch (update name)
+    let resp = app
+        .patch_json_auth(
+            &format!("/api/v1/agents/{agent_id}"),
+            &json!({"name": "Updated E2E Agent"}),
+            &token,
+        )
+        .await;
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["name"], "Updated E2E Agent");
+
     let resp = app
         .delete_auth(&format!("/api/v1/agents/{agent_id}"), &token)
         .await;
