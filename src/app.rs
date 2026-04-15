@@ -95,7 +95,6 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
         agent_handler::update_agent,
         agent_handler::delete_agent,
         agent_handler::login,
-        agent_handler::check_balance,
         agent_handler::history,
         agent_handler::register_customer,
         agent_handler::update_password,

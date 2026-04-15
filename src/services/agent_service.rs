@@ -1,5 +1,5 @@
 //! Agent account business logic: CRUD, authentication, customer registration,
-//! balance checks, and transaction history.
+//! and transaction history.
 //!
 //! Agents are field operators who perform customer withdrawals.  This module
 //! handles the full agent lifecycle including login, password changes, and
@@ -15,10 +15,9 @@ use crate::{
         AgentRegisterCustomerRequest, CreateAgentRequest, DEFAULT_NETWORK, HOUSE_ACCOUNT_REF,
         UpdateAgentPasswordRequest, UpdateAgentRequest,
     },
-    models::card::CardDetail,
     services::{auth_service, card_service},
     state::app_state::{AuthConfig, RedisPool},
-    utils::{cache, password},
+    utils::{cache, client_code, password},
 };
 
 /// SQL column list reused across agent queries.
@@ -204,22 +203,6 @@ pub async fn authenticate(
     })
 }
 
-/// Looks up a card's balance details by NFC reference.
-///
-/// # Errors
-///
-/// - [`AppError::NotFound`] — no `card_details` row for this NFC ref.
-/// - [`AppError::Database`] — query failure.
-pub async fn check_balance(
-    pool: &PgPool,
-    card_id: &str,
-    redis: &RedisPool,
-) -> Result<CardDetail, AppError> {
-    card_service::get_detail_by_nfc(pool, card_id, redis)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Card not found".into()))
-}
-
 /// Returns the transaction history for a given agent, with client names
 /// resolved from the `customers` table.
 ///
@@ -259,7 +242,7 @@ pub async fn register_customer(
     input: &AgentRegisterCustomerRequest,
     redis: &RedisPool,
 ) -> Result<(), AppError> {
-    if card_service::get_detail_by_nfc(pool, &input.card_ref, redis)
+    if card_service::get_detail_by_nfc(pool, &input.card_id, redis)
         .await?
         .is_some()
     {
@@ -270,16 +253,7 @@ pub async fn register_customer(
 
     let mut tx = pool.begin().await?;
 
-    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM customers")
-        .fetch_one(&mut *tx)
-        .await?;
-    let client_code = format!(
-        "Storm-{}{}-{}",
-        chrono::Utc::now().format("%m"),
-        count.0 + 1,
-        rand::random::<u16>() % 5000
-    );
-
+    let client_code = client_code::generate_client_code();
     let default_password_hash = password::hash("1234")?;
     let customer_id = Uuid::new_v4();
 
@@ -298,7 +272,7 @@ pub async fn register_customer(
     .bind(&input.last_name)
     .bind(&input.address)
     .bind(&input.phone)
-    .bind(&input.card_ref)
+    .bind(&input.card_id)
     .bind(&input.gender)
     .bind(&input.marital_status)
     .bind(&input.affiliation)
@@ -313,7 +287,7 @@ pub async fn register_customer(
              password = EXCLUDED.password, \
              network = EXCLUDED.network"
     ))
-    .bind(&input.card_ref)
+    .bind(&input.card_id)
     .bind(&client_code)
     .bind(&default_password_hash)
     .execute(&mut *tx)
@@ -322,7 +296,7 @@ pub async fn register_customer(
     tx.commit().await?;
 
     // Invalidate cached card detail for this NFC ref
-    cache::del(redis, &cache::card_detail_key(&input.card_ref)).await;
+    cache::del(redis, &cache::card_detail_key(&input.card_id)).await;
 
     Ok(())
 }

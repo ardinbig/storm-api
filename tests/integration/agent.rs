@@ -281,43 +281,6 @@ async fn update_agent_not_found(pool: PgPool) {
 // ===============================================
 
 #[sqlx::test]
-async fn agent_check_balance_not_found(pool: PgPool) {
-    let (mut app, token) = create_test_app_with_token(pool).await;
-
-    let (status, _) = auth_get(&mut app, "/api/v1/agents/cards/NONEXISTENT/balance", &token).await;
-
-    assert_eq!(status, StatusCode::NOT_FOUND);
-}
-
-#[sqlx::test]
-async fn agent_check_balance_success(pool: PgPool) {
-    let nfc = "NFC-BAL-001";
-    seed_card(&pool, nfc).await;
-    let hash = storm_api::services::auth_service::hash_password("card.pass").unwrap();
-    sqlx::query(
-        "INSERT INTO card_details (nfc_ref, client_code, password, amount)
-         VALUES ($1, 'REG-BAL-001', $2, 500)",
-    )
-    .bind(nfc)
-    .bind(&hash)
-    .execute(&pool)
-    .await
-    .unwrap();
-
-    let (mut app, token) = create_test_app_with_token(pool).await;
-
-    let (status, body) = auth_get(
-        &mut app,
-        &format!("/api/v1/agents/cards/{nfc}/balance"),
-        &token,
-    )
-    .await;
-
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["nfc_ref"], nfc);
-}
-
-#[sqlx::test]
 async fn agent_history_empty(pool: PgPool) {
     let (mut app, token) = create_test_app_with_token(pool).await;
 
@@ -340,7 +303,7 @@ async fn agent_register_customer(pool: PgPool) {
             "last_name": "Customer",
             "first_name": "Agent",
             "phone": "0899999",
-            "card_ref": "NFC-ARES-001"
+            "card_id": "NFC-ARES-001"
         }),
         &token,
     )
@@ -372,7 +335,7 @@ async fn agent_register_customer_card_conflict(pool: PgPool) {
             "last_name": "Dup",
             "first_name": "Dup",
             "phone": "000",
-            "card_ref": nfc
+            "card_id": nfc
         }),
         &token,
     )

@@ -110,11 +110,7 @@ pub fn price_key(consumption_type: &str) -> String {
 /// coverage tools).
 #[doc(hidden)]
 pub async fn _test_set_bad_serialize(redis: &RedisPool, key: &str) {
-    struct Bad;
-    impl serde::Serialize for Bad {
-        fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
-            Err(serde::ser::Error::custom("intentional test failure"))
-        }
-    }
-    set(redis, key, &Bad, 60).await;
+    // JSON object keys must be strings; tuple keys trigger serialization errors.
+    let bad = std::collections::HashMap::from([((1_i32, 2_i32), 1_i32)]);
+    set(redis, key, &bad, 60).await;
 }

@@ -47,7 +47,7 @@ pub struct Customer {
 /// Request body for `POST /api/v1/customers` (register a customer).
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterCustomerRequest {
-    /// Auto-generated client code (e.g. `"STORM-yyyyMMdd-hhmmss"`).
+    /// Auto-generated client code.
     pub client_code: Option<String>,
     /// NFC card identifier to associate (required).
     pub card_id: String,

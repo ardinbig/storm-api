@@ -1,4 +1,4 @@
-//! Agent account handlers: CRUD, login, balance check, history, customer
+//! Agent account handlers: CRUD, login, history, customer
 //! registration, and password update.
 
 use axum::{
@@ -12,13 +12,10 @@ use uuid::Uuid;
 
 use crate::{
     errors::{AppError, ErrorResponse},
-    models::{
-        agent::{
-            AgentAuthResponse, AgentHistoryRow, AgentInfo, AgentLoginRequest,
-            AgentRegisterCustomerRequest, CreateAgentRequest, UpdateAgentPasswordRequest,
-            UpdateAgentRequest,
-        },
-        card::CardDetail,
+    models::agent::{
+        AgentAuthResponse, AgentHistoryRow, AgentInfo, AgentLoginRequest,
+        AgentRegisterCustomerRequest, CreateAgentRequest, UpdateAgentPasswordRequest,
+        UpdateAgentRequest,
     },
     services::agent_service,
     state::app_state::{AuthConfig, RedisPool},
@@ -160,31 +157,6 @@ pub async fn login(
 ) -> Result<Json<AgentAuthResponse>, AppError> {
     let response = agent_service::authenticate(&pool, &config, &input).await?;
     Ok(Json(response))
-}
-
-/// `GET /api/v1/agents/cards/{card_id}/balance`
-///
-/// Returns the card detail (balance) for a given NFC reference.
-#[utoipa::path(
-    get,
-    path = "/api/v1/agents/cards/{card_id}/balance",
-    tag = "Agents",
-    security(("bearer" = [])),
-    params(
-        ("card_id" = String, Path, description = "NFC card reference"),
-    ),
-    responses(
-        (status = 200, description = "Card balance", body = CardDetail),
-        (status = 404, description = "Card not found", body = ErrorResponse),
-    ),
-)]
-pub async fn check_balance(
-    State(pool): State<PgPool>,
-    State(redis): State<RedisPool>,
-    Path(card_id): Path<String>,
-) -> Result<Json<CardDetail>, AppError> {
-    let card = agent_service::check_balance(&pool, &card_id, &redis).await?;
-    Ok(Json(card))
 }
 
 /// `GET /api/v1/agents/{agent_id}/history`

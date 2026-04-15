@@ -76,8 +76,8 @@ pub struct AgentRegisterCustomerRequest {
     pub address: Option<String>,
     /// Phone number (required).
     pub phone: String,
-    /// NFC card reference to assign to the new customer.
-    pub card_ref: String,
+    /// NFC card identifier to assign to the new customer.
+    pub card_id: String,
     /// Gender (e.g. `"M"`, `"F"`).
     pub gender: Option<String>,
     /// Marital status.

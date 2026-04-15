@@ -7,7 +7,6 @@
 //! | `PATCH` | `/{id}` | [`agent_handler::update_agent`] |
 //! | `GET` | `/{id}` | [`agent_handler::get_agent`] |
 //! | `DELETE` | `/{id}` | [`agent_handler::delete_agent`] |
-//! | `GET` | `/cards/{card_id}/balance` | [`agent_handler::check_balance`] |
 //! | `GET` | `/{agent_id}/history` | [`agent_handler::history`] |
 //! | `POST` | `/customers` | [`agent_handler::register_customer`] |
 //! | `PUT` | `/password` | [`agent_handler::update_password`] |
@@ -31,10 +30,6 @@ pub fn routes() -> Router<AppState> {
             get(agent_handler::get_agent)
                 .patch(agent_handler::update_agent)
                 .delete(agent_handler::delete_agent),
-        )
-        .route(
-            "/cards/{card_id}/balance",
-            get(agent_handler::check_balance),
         )
         .route("/{agent_id}/history", get(agent_handler::history))
         .route("/customers", post(agent_handler::register_customer))
