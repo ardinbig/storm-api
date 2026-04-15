@@ -179,9 +179,9 @@ Graceful shutdown listens for `SIGTERM` / `Ctrl+C`, flips the readiness flag to 
 
 | Layer                 | Technology (crates)                                    |
 |-----------------------|--------------------------------------------------------|
-| Language              | Rust 1.94+ (edition 2024)                              |
+| Language              | Rust 1.94+                                             |
 | Web framework         | Axum 0.8 + Tower + tower-http                          |
-| Async runtime         | Tokio 1.50                                             |
+| Async runtime         | Tokio                                                  |
 | Database              | PostgreSQL 18 via SQLx                                 |
 | Cache / JWT blocklist | Redis 8 via redis-rs (optional - graceful degradation) |
 | Authentication        | JWT via jsonwebtoken, Argon2id via argon2              |

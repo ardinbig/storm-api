@@ -1,13 +1,13 @@
 [package]
 name = "storm-api"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 
 [dependencies]
 
 # Core
 axum = "0.8.8"
-tokio = { version = "1.50.0", features = ["full"] }
+tokio = { version = "1.51.1", features = ["full"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 
@@ -33,7 +33,6 @@ sqlx = { version = "0.8.6", features = [
 # Auth
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 argon2 = "0.5.3"
-rand = "0.10.0"
 chrono = { version = "0.4.44", features = ["serde"] }
 
 # Error handling

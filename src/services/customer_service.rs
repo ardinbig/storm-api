@@ -14,13 +14,8 @@ use crate::{
     models::customer::{
         Customer, CustomerByCardResponse, RegisterCustomerRequest, UpdateCustomerRequest,
     },
+    utils::client_code,
 };
-
-fn generate_client_code() -> String {
-    use chrono::Utc;
-    let now = Utc::now();
-    format!("STORM-{}", now.format("%Y%m%d-%H%M%S"))
-}
 
 /// Lists all customers ordered by last_name, first_name.
 ///
@@ -83,7 +78,7 @@ pub async fn register(
     input: &RegisterCustomerRequest,
 ) -> Result<Customer, AppError> {
     let id = Uuid::new_v4();
-    let client_code = generate_client_code();
+    let client_code = client_code::generate_client_code();
     let customer = sqlx::query_as::<_, Customer>(
         "INSERT INTO customers (id, status, client_code, first_name, middle_name, last_name, address, networks, phone, category_ref, card_id, gender, marital_status, affiliation)
          VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)

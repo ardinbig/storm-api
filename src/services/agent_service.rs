@@ -1,5 +1,5 @@
 //! Agent account business logic: CRUD, authentication, customer registration,
-//! balance checks, and transaction history.
+//! and transaction history.
 //!
 //! Agents are field operators who perform customer withdrawals.  This module
 //! handles the full agent lifecycle including login, password changes, and
@@ -13,12 +13,11 @@ use crate::{
     models::agent::{
         Agent, AgentAuthResponse, AgentHistoryRow, AgentInfo, AgentLoginRequest,
         AgentRegisterCustomerRequest, CreateAgentRequest, DEFAULT_NETWORK, HOUSE_ACCOUNT_REF,
-        UpdateAgentPasswordRequest,
+        UpdateAgentPasswordRequest, UpdateAgentRequest,
     },
-    models::card::CardDetail,
     services::{auth_service, card_service},
     state::app_state::{AuthConfig, RedisPool},
-    utils::{cache, password},
+    utils::{cache, client_code, password},
 };
 
 /// SQL column list reused across agent queries.
@@ -118,6 +117,37 @@ pub async fn create(pool: &PgPool, input: &CreateAgentRequest) -> Result<AgentIn
     Ok(AgentInfo::from(agent))
 }
 
+/// Partially updates an agent account.
+///
+/// Only non-`None` fields in `input` are applied; existing values are
+/// preserved via `COALESCE`.
+///
+/// # Errors
+///
+/// - [`AppError::NotFound`] — no agent with this `id`.
+/// - [`AppError::Database`] — query failure.
+pub async fn update(
+    pool: &PgPool,
+    id: Uuid,
+    input: &UpdateAgentRequest,
+) -> Result<AgentInfo, AppError> {
+    let agent = sqlx::query_as::<_, Agent>(&format!(
+        "UPDATE agent_accounts SET
+            name = COALESCE($2, name),
+            currency_code = COALESCE($3, currency_code)
+         WHERE id = $1
+         RETURNING {AGENT_COLUMNS}"
+    ))
+    .bind(id)
+    .bind(input.name.as_ref())
+    .bind(input.currency_code.as_ref())
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Agent not found".into()))?;
+
+    Ok(AgentInfo::from(agent))
+}
+
 /// Deletes an agent account by primary key.
 ///
 /// The house account ([`HOUSE_ACCOUNT_REF`]) cannot be deleted.
@@ -158,7 +188,7 @@ pub async fn delete(pool: &PgPool, id: Uuid) -> Result<(), AppError> {
 ///
 /// - [`AppError::Unauthorized`] — bad credentials.
 /// - [`AppError::Internal`] — JWT signing failure.
-pub async fn login(
+pub async fn authenticate(
     pool: &PgPool,
     config: &AuthConfig,
     input: &AgentLoginRequest,
@@ -171,22 +201,6 @@ pub async fn login(
         token,
         agent: AgentInfo::from(agent),
     })
-}
-
-/// Looks up a card's balance details by NFC reference.
-///
-/// # Errors
-///
-/// - [`AppError::NotFound`] — no `card_details` row for this NFC ref.
-/// - [`AppError::Database`] — query failure.
-pub async fn check_balance(
-    pool: &PgPool,
-    card_id: &str,
-    redis: &RedisPool,
-) -> Result<CardDetail, AppError> {
-    card_service::get_detail_by_nfc(pool, card_id, redis)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Card not found".into()))
 }
 
 /// Returns the transaction history for a given agent, with client names
@@ -228,7 +242,7 @@ pub async fn register_customer(
     input: &AgentRegisterCustomerRequest,
     redis: &RedisPool,
 ) -> Result<(), AppError> {
-    if card_service::get_detail_by_nfc(pool, &input.card_ref, redis)
+    if card_service::get_detail_by_nfc(pool, &input.card_id, redis)
         .await?
         .is_some()
     {
@@ -239,16 +253,7 @@ pub async fn register_customer(
 
     let mut tx = pool.begin().await?;
 
-    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM customers")
-        .fetch_one(&mut *tx)
-        .await?;
-    let client_code = format!(
-        "Storm-{}{}-{}",
-        chrono::Utc::now().format("%m"),
-        count.0 + 1,
-        rand::random::<u16>() % 5000
-    );
-
+    let client_code = client_code::generate_client_code();
     let default_password_hash = password::hash("1234")?;
     let customer_id = Uuid::new_v4();
 
@@ -267,7 +272,7 @@ pub async fn register_customer(
     .bind(&input.last_name)
     .bind(&input.address)
     .bind(&input.phone)
-    .bind(&input.card_ref)
+    .bind(&input.card_id)
     .bind(&input.gender)
     .bind(&input.marital_status)
     .bind(&input.affiliation)
@@ -282,7 +287,7 @@ pub async fn register_customer(
              password = EXCLUDED.password, \
              network = EXCLUDED.network"
     ))
-    .bind(&input.card_ref)
+    .bind(&input.card_id)
     .bind(&client_code)
     .bind(&default_password_hash)
     .execute(&mut *tx)
@@ -291,7 +296,7 @@ pub async fn register_customer(
     tx.commit().await?;
 
     // Invalidate cached card detail for this NFC ref
-    cache::del(redis, &cache::card_detail_key(&input.card_ref)).await;
+    cache::del(redis, &cache::card_detail_key(&input.card_id)).await;
 
     Ok(())
 }

@@ -76,8 +76,8 @@ pub struct AgentRegisterCustomerRequest {
     pub address: Option<String>,
     /// Phone number (required).
     pub phone: String,
-    /// NFC card reference to assign to the new customer.
-    pub card_ref: String,
+    /// NFC card identifier to assign to the new customer.
+    pub card_id: String,
     /// Gender (e.g. `"M"`, `"F"`).
     pub gender: Option<String>,
     /// Marital status.
@@ -151,5 +151,17 @@ pub struct CreateAgentRequest {
     /// Initial plaintext password (will be Argon2-hashed).
     pub password: String,
     /// ISO currency code; defaults to `"CDF"` when omitted.
+    pub currency_code: Option<String>,
+}
+
+/// Request body for `PATCH /api/v1/agents/{id}`.
+///
+/// All fields are optional; only non-`None` values will be applied to the
+/// existing record via `COALESCE`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateAgentRequest {
+    /// Display name.
+    pub name: Option<String>,
+    /// ISO currency code.
     pub currency_code: Option<String>,
 }
