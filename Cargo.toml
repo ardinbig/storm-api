@@ -33,7 +33,6 @@ sqlx = { version = "0.8.6", features = [
 # Auth
 jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 argon2 = "0.5.3"
-rand = "0.10.0"
 chrono = { version = "0.4.44", features = ["serde"] }
 
 # Error handling
