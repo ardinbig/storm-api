@@ -126,6 +126,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
         commission_handler::list_commissions,
         commission_handler::get_current,
         commission_handler::create_commission,
+        commission_handler::delete_commission,
         // Commission Tiers
         commission_tier_handler::list_tiers,
         commission_tier_handler::get_by_category,
@@ -247,8 +248,11 @@ pub fn create_app(state: AppState) -> Router {
         .nest("/api/v1/cards", routes::cards::routes())
         .nest("/api/v1/prices", routes::prices::routes())
         .nest("/api/v1/agents", routes::agents::routes())
+        // TODO(ardinbig): Implement pagination for customers list (add metadata)
         .nest("/api/v1/customers", routes::customers::routes())
+        // TODO(ardinbig) Implement pagination for consumptions list
         .nest("/api/v1/consumptions", routes::consumptions::routes())
+        // TODO(ardinbig): Implement pagination for transaction list
         .nest("/api/v1/transactions", routes::transactions::routes())
         .nest("/api/v1/commissions", routes::commissions::routes())
         .nest(

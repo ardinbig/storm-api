@@ -5,6 +5,7 @@
 //! | `GET` | `/` | [`commission_handler::list_commissions`] |
 //! | `POST` | `/` | [`commission_handler::create_commission`] |
 //! | `GET` | `/current` | [`commission_handler::get_current`] |
+//! | `DELETE` | `/{id}` | [`commission_handler::delete_commission`] |
 
 use axum::{Router, routing::get};
 
@@ -18,4 +19,8 @@ pub fn routes() -> Router<AppState> {
             get(commission_handler::list_commissions).post(commission_handler::create_commission),
         )
         .route("/current", get(commission_handler::get_current))
+        .route(
+            "/{id}",
+            axum::routing::delete(commission_handler::delete_commission),
+        )
 }

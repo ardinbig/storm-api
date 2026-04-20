@@ -65,3 +65,44 @@ pub async fn create(
 
     Ok(commission)
 }
+
+/// Deletes a commission by primary key.
+///
+/// Deletion is only allowed when there is more than one commission record,
+/// ensuring at least one commission rate always remains configured.
+///
+/// # Errors
+///
+/// - [`AppError::NotFound`] - no commission exists with this `id`.
+/// - [`AppError::BadRequest`] - only one commission record exists, so deletion is blocked.
+/// - [`AppError::Database`] - query failure.
+pub async fn delete(pool: &PgPool, id: Uuid) -> Result<(), AppError> {
+    let result = sqlx::query(
+        "DELETE FROM commissions
+         WHERE id = $1
+           AND (SELECT COUNT(*) FROM commissions) > 1",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        let exists =
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM commissions WHERE id = $1)")
+                .bind(id)
+                .fetch_one(pool)
+                .await?;
+
+        if !exists {
+            return Err(AppError::NotFound(format!(
+                "Commission with ID {id} not found"
+            )));
+        }
+
+        return Err(AppError::BadRequest(
+            "At least 2 commission records are required before deleting one".to_string(),
+        ));
+    }
+
+    Ok(())
+}
