@@ -53,6 +53,54 @@ pub async fn authenticate(
     })
 }
 
+/// Seeds the super-admin account on first boot.
+///
+/// Checks whether a user with `username = "suadmin"` already exists in the
+/// `users` table. If it does, the function is a no-op. Otherwise, it inserts
+/// the super-admin row using the plaintext password supplied via the
+/// `SUPER_ADMIN_PASSWORD` environment variable.
+///
+/// Call this once during application startup, **after** the database pool is
+/// ready, so that a fresh deployment always has an administrative account
+/// available.
+///
+/// # Errors
+///
+/// - [`AppError::Internal`] — password hashing failure.
+/// - [`AppError::Database`] — any unexpected database error.
+pub async fn seed_super_admin(pool: &PgPool) -> Result<(), AppError> {
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)")
+        .bind("suadmin")
+        .fetch_one(pool)
+        .await?;
+
+    if exists {
+        tracing::info!("Super-admin account already exists — skipping seed");
+        return Ok(());
+    }
+
+    let raw_password =
+        std::env::var("SUPER_ADMIN_PASSWORD").unwrap_or_else(|_| "superadminpassword".into());
+
+    let hashed = password::hash(&raw_password)?;
+    let id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO users (id, name, email, password, username)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(id)
+    .bind("Super Administrator")
+    .bind("info@ardinbig.com")
+    .bind(&hashed)
+    .bind("suadmin")
+    .execute(pool)
+    .await?;
+
+    tracing::info!("Super-admin account created (username: suadmin)");
+    Ok(())
+}
+
 /// Registers a new system user.
 ///
 /// Hashes the password with Argon2, generates a `UUID` primary key, and

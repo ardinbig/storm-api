@@ -43,6 +43,11 @@ async fn main() {
     ))
     .await;
 
+    // Ensure the super-admin account exists on every cold start.
+    if let Err(e) = storm_api::services::user_service::seed_super_admin(&pool).await {
+        tracing::error!("Failed to seed super-admin account: {e}");
+    }
+
     // Redis — optional; the application degrades gracefully when unavailable.
     let redis = match redis::Client::open(env_or("REDIS_URL", "redis://127.0.0.1:6379")) {
         Ok(client) => match redis::aio::ConnectionManager::new(client).await {
