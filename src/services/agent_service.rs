@@ -21,12 +21,12 @@ use crate::{
 };
 
 /// SQL column list reused across agent queries.
-const AGENT_COLUMNS: &str = "id, agent_ref, name, password, balance, currency_code";
+const AGENT_COLUMNS: &str = "id, agent_ref, name, password, balance, currency_code, station_id";
 
 /// Precomputed queries
-const SELECT_ALL: &str = "SELECT id, agent_ref, name, password, balance, currency_code FROM agent_accounts ORDER BY agent_ref";
-const SELECT_BY_ID: &str = "SELECT id, agent_ref, name, password, balance, currency_code FROM agent_accounts WHERE id = $1";
-const SELECT_BY_REF: &str = "SELECT id, agent_ref, name, password, balance, currency_code FROM agent_accounts WHERE agent_ref = $1";
+const SELECT_ALL: &str = "SELECT id, agent_ref, name, password, balance, currency_code, station_id FROM agent_accounts ORDER BY agent_ref";
+const SELECT_BY_ID: &str = "SELECT id, agent_ref, name, password, balance, currency_code, station_id FROM agent_accounts WHERE id = $1";
+const SELECT_BY_REF: &str = "SELECT id, agent_ref, name, password, balance, currency_code, station_id FROM agent_accounts WHERE agent_ref = $1";
 
 // Private helpers
 // ===============
@@ -103,7 +103,7 @@ pub async fn create(pool: &PgPool, input: &CreateAgentRequest) -> Result<AgentIn
 
     let agent = sqlx::query_as::<_, Agent>(&format!(
         "INSERT INTO agent_accounts ({AGENT_COLUMNS})
-         VALUES ($1, $2, $3, $4, 0, $5)
+         VALUES ($1, $2, $3, $4, 0, $5, $6)
          RETURNING {AGENT_COLUMNS}"
     ))
     .bind(id)
@@ -111,6 +111,7 @@ pub async fn create(pool: &PgPool, input: &CreateAgentRequest) -> Result<AgentIn
     .bind(&input.name)
     .bind(&hashed)
     .bind(currency)
+    .bind(input.station_id)
     .fetch_one(pool)
     .await?;
 
@@ -133,14 +134,16 @@ pub async fn update(
 ) -> Result<AgentInfo, AppError> {
     let agent = sqlx::query_as::<_, Agent>(&format!(
         "UPDATE agent_accounts SET
-            name = COALESCE($2, name),
-            currency_code = COALESCE($3, currency_code)
+            name          = COALESCE($2, name),
+            currency_code = COALESCE($3, currency_code),
+            station_id    = COALESCE($4, station_id)
          WHERE id = $1
          RETURNING {AGENT_COLUMNS}"
     ))
     .bind(id)
     .bind(input.name.as_ref())
     .bind(input.currency_code.as_ref())
+    .bind(input.station_id)
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Agent not found".into()))?;

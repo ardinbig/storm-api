@@ -1,7 +1,12 @@
 //! Commission rate handlers: list, get-current, and create.
 
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::{
     errors::{AppError, ErrorResponse},
@@ -66,4 +71,29 @@ pub async fn create_commission(
 ) -> Result<(StatusCode, Json<Commission>), AppError> {
     let commission = commission_service::create(&pool, &input).await?;
     Ok((StatusCode::CREATED, Json(commission)))
+}
+
+/// `DELETE /api/v1/commissions/{id}`
+///
+/// Deletes a commission rate. Returns `204 No Content`.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/commissions/{id}",
+    tag = "Commissions",
+    security(("bearer" = [])),
+    params(
+        ("id" = Uuid, Path, description = "Commission UUID"),
+    ),
+    responses(
+        (status = 204, description = "Commission deleted"),
+        (status = 400, description = "Cannot delete the last remaining commission", body = ErrorResponse),
+        (status = 404, description = "Commission not found", body = ErrorResponse),
+    ),
+)]
+pub async fn delete_commission(
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, AppError> {
+    commission_service::delete(&pool, id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

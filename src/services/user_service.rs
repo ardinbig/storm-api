@@ -53,6 +53,46 @@ pub async fn authenticate(
     })
 }
 
+/// Seeds (or refreshes) the super-admin account on every boot.
+///
+/// * On a **fresh** database the row is created.
+/// * On subsequent starts the `name`, `email`, and `password` are
+///   **always synchronized** with the current environment variable values.
+///
+/// # Errors
+///
+/// - [`AppError::Internal`] — password hashing failure.
+/// - [`AppError::Database`] — any unexpected database error.
+pub async fn seed_super_admin(pool: &PgPool) -> Result<(), AppError> {
+    let raw_password = dotenvy::var("SUPER_ADMIN_PASSWORD").map_err(|_| {
+        tracing::error!("SUPER_ADMIN_PASSWORD environment variable is not set");
+        AppError::Internal
+    })?;
+
+    let hashed = password::hash(&raw_password)?;
+    let id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO users (id, name, email, password, username)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (username)
+         DO UPDATE SET
+             name     = EXCLUDED.name,
+             email    = EXCLUDED.email,
+             password = EXCLUDED.password",
+    )
+    .bind(id)
+    .bind("Super Administrator")
+    .bind("info@ardinbig.com")
+    .bind(&hashed)
+    .bind("suadmin")
+    .execute(pool)
+    .await?;
+
+    tracing::info!("Super-admin account upserted (username: suadmin)");
+    Ok(())
+}
+
 /// Registers a new system user.
 ///
 /// Hashes the password with Argon2, generates a `UUID` primary key, and

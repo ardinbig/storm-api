@@ -17,3 +17,4 @@ mod health;
 mod price;
 mod state;
 mod transaction;
+mod user;
