@@ -1,8 +1,47 @@
 use sqlx::PgPool;
 use storm_api::services::user_service;
 
+fn set_default_admin_password() {
+    unsafe {
+        std::env::set_var("SUPER_ADMIN_PASSWORD", "TestAdminPass1!");
+    }
+}
+
+// The database trigger installed by 003_protect_suadmin.sql must reject any
+// attempt to DELETE the suadmin row.
 #[sqlx::test]
+#[serial_test::serial]
+async fn suadmin_cannot_be_deleted_from_users_table(pool: PgPool) {
+    set_default_admin_password();
+    user_service::seed_super_admin(&pool).await.unwrap();
+
+    let result = sqlx::query("DELETE FROM users WHERE username = 'suadmin'")
+        .execute(&pool)
+        .await;
+
+    assert!(
+        result.is_err(),
+        "DELETE suadmin should be rejected by the trigger"
+    );
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("suadmin account is protected"),
+        "unexpected error message: {err}"
+    );
+
+    // The row must still be present.
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE username = 'suadmin'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+    assert_eq!(count.0, 1);
+}
+
+#[sqlx::test]
+#[serial_test::serial]
 async fn seed_super_admin_creates_suadmin_user_on_empty_db(pool: PgPool) {
+    set_default_admin_password();
     user_service::seed_super_admin(&pool).await.unwrap();
 
     let row: (String, String, Option<String>) =
@@ -17,7 +56,9 @@ async fn seed_super_admin_creates_suadmin_user_on_empty_db(pool: PgPool) {
 }
 
 #[sqlx::test]
+#[serial_test::serial]
 async fn seed_super_admin_is_idempotent_when_called_twice(pool: PgPool) {
+    set_default_admin_password();
     user_service::seed_super_admin(&pool).await.unwrap();
     user_service::seed_super_admin(&pool).await.unwrap();
 
@@ -29,25 +70,56 @@ async fn seed_super_admin_is_idempotent_when_called_twice(pool: PgPool) {
     assert_eq!(count.0, 1);
 }
 
+// The upsert re-hashes with a fresh salt on every call, so the stored hash
+// bytes change — but there must still be exactly one suadmin row.
 #[sqlx::test]
-async fn seed_super_admin_does_not_overwrite_existing_suadmin(pool: PgPool) {
+#[serial_test::serial]
+async fn seed_super_admin_upsert_keeps_exactly_one_row(pool: PgPool) {
+    set_default_admin_password();
+    user_service::seed_super_admin(&pool).await.unwrap();
     user_service::seed_super_admin(&pool).await.unwrap();
 
-    let original_hash: (String,) =
-        sqlx::query_as("SELECT password FROM users WHERE username = 'suadmin'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE username = 'suadmin'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
+    assert_eq!(count.0, 1);
+}
+
+// Changing SUPER_ADMIN_PASSWORD and re-seeding must let the new password work.
+#[sqlx::test]
+#[serial_test::serial]
+async fn seed_super_admin_picks_up_new_password_after_env_change(pool: PgPool) {
+    unsafe {
+        std::env::set_var("SUPER_ADMIN_PASSWORD", "OldPassword1");
+    }
     user_service::seed_super_admin(&pool).await.unwrap();
 
-    let after_hash: (String,) =
-        sqlx::query_as("SELECT password FROM users WHERE username = 'suadmin'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    unsafe {
+        std::env::set_var("SUPER_ADMIN_PASSWORD", "NewPassword2");
+    }
+    user_service::seed_super_admin(&pool).await.unwrap();
+    unsafe {
+        std::env::remove_var("SUPER_ADMIN_PASSWORD");
+    }
 
-    assert_eq!(original_hash.0, after_hash.0);
+    let config = storm_api::state::app_state::AuthConfig {
+        jwt_secret: "test-secret".into(),
+        jwt_expiry_hours: 24,
+    };
+
+    assert!(
+        user_service::authenticate(&pool, &config, "suadmin", "NewPassword2")
+            .await
+            .is_ok()
+    );
+
+    assert!(
+        user_service::authenticate(&pool, &config, "suadmin", "OldPassword1")
+            .await
+            .is_err()
+    );
 }
 
 #[sqlx::test]
@@ -90,21 +162,16 @@ async fn seed_super_admin_password_wrong_password_is_rejected(pool: PgPool) {
     assert!(result.is_err());
 }
 
+// When the env var is absent the seed must fail.
 #[sqlx::test]
 #[serial_test::serial]
-async fn seed_super_admin_falls_back_to_default_password_when_env_absent(pool: PgPool) {
+async fn seed_super_admin_fails_when_env_absent(pool: PgPool) {
     unsafe {
         std::env::remove_var("SUPER_ADMIN_PASSWORD");
     }
-    user_service::seed_super_admin(&pool).await.unwrap();
 
-    let config = storm_api::state::app_state::AuthConfig {
-        jwt_secret: "test-secret".into(),
-        jwt_expiry_hours: 24,
-    };
-
-    let result = user_service::authenticate(&pool, &config, "suadmin", "superadminpassword").await;
-    assert!(result.is_ok());
+    let result = user_service::seed_super_admin(&pool).await;
+    assert!(result.is_err());
 }
 
 #[sqlx::test]
@@ -133,6 +200,7 @@ async fn seed_super_admin_issued_token_carries_user_role(pool: PgPool) {
 }
 
 #[sqlx::test]
+#[serial_test::serial]
 async fn seed_super_admin_does_not_affect_other_users(pool: PgPool) {
     user_service::register(
         &pool,
@@ -146,6 +214,7 @@ async fn seed_super_admin_does_not_affect_other_users(pool: PgPool) {
     .await
     .unwrap();
 
+    set_default_admin_password();
     user_service::seed_super_admin(&pool).await.unwrap();
 
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")

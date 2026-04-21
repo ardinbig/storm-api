@@ -53,41 +53,33 @@ pub async fn authenticate(
     })
 }
 
-/// Seeds the super-admin account on first boot.
+/// Seeds (or refreshes) the super-admin account on every boot.
 ///
-/// Checks whether a user with `username = "suadmin"` already exists in the
-/// `users` table. If it does, the function is a no-op. Otherwise, it inserts
-/// the super-admin row using the plaintext password supplied via the
-/// `SUPER_ADMIN_PASSWORD` environment variable.
-///
-/// Call this once during application startup, **after** the database pool is
-/// ready, so that a fresh deployment always has an administrative account
-/// available.
+/// * On a **fresh** database the row is created.
+/// * On subsequent starts the `name`, `email`, and `password` are
+///   **always synchronized** with the current environment variable values.
 ///
 /// # Errors
 ///
 /// - [`AppError::Internal`] — password hashing failure.
 /// - [`AppError::Database`] — any unexpected database error.
 pub async fn seed_super_admin(pool: &PgPool) -> Result<(), AppError> {
-    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)")
-        .bind("suadmin")
-        .fetch_one(pool)
-        .await?;
-
-    if exists {
-        tracing::info!("Super-admin account already exists — skipping seed");
-        return Ok(());
-    }
-
-    let raw_password =
-        std::env::var("SUPER_ADMIN_PASSWORD").unwrap_or_else(|_| "superadminpassword".into());
+    let raw_password = dotenvy::var("SUPER_ADMIN_PASSWORD").map_err(|_| {
+        tracing::error!("SUPER_ADMIN_PASSWORD environment variable is not set");
+        AppError::Internal
+    })?;
 
     let hashed = password::hash(&raw_password)?;
     let id = Uuid::new_v4();
 
     sqlx::query(
         "INSERT INTO users (id, name, email, password, username)
-         VALUES ($1, $2, $3, $4, $5)",
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (username)
+         DO UPDATE SET
+             name     = EXCLUDED.name,
+             email    = EXCLUDED.email,
+             password = EXCLUDED.password",
     )
     .bind(id)
     .bind("Super Administrator")
@@ -97,7 +89,7 @@ pub async fn seed_super_admin(pool: &PgPool) -> Result<(), AppError> {
     .execute(pool)
     .await?;
 
-    tracing::info!("Super-admin account created (username: suadmin)");
+    tracing::info!("Super-admin account upserted (username: suadmin)");
     Ok(())
 }
 

@@ -44,8 +44,11 @@ async fn e2e_withdrawal_flow() {
 
     let resp = app.get_auth("/api/v1/transactions", &token).await;
     assert_eq!(resp.status(), 200);
-    let transactions: Vec<serde_json::Value> = resp.json().await.unwrap();
-    assert_eq!(transactions.len(), 1);
+    let transactions: serde_json::Value = resp.json().await.unwrap();
+    let data = transactions["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1);
+    assert_eq!(transactions["total_items"], 1);
+    assert_eq!(transactions["page"], 1);
 }
 
 #[tokio::test]
@@ -76,8 +79,10 @@ async fn e2e_consumption_crud_flow() {
 
     let resp = app.get_auth("/api/v1/consumptions", &token).await;
     assert_eq!(resp.status(), 200);
-    let list: Vec<serde_json::Value> = resp.json().await.unwrap();
-    assert!(!list.is_empty());
+    let list: serde_json::Value = resp.json().await.unwrap();
+    let data = list["data"].as_array().unwrap();
+    assert!(!data.is_empty());
+    assert_eq!(list["total_items"], 1);
 
     let resp = app
         .get_auth("/api/v1/consumptions/by-client/CC-CONS-E2E", &token)

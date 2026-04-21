@@ -9,6 +9,10 @@ use axum::{
 use serde_json::json;
 use sqlx::PgPool;
 use storm_api::app::create_app;
+use storm_api::{
+    models::agent::HOUSE_ACCOUNT_REF, models::transaction::WithdrawalRequest,
+    services::transaction_service, state::app_state::RedisPool,
+};
 use tower_service::Service;
 use uuid::Uuid;
 
@@ -1150,4 +1154,102 @@ async fn list_activity_requires_auth(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[sqlx::test]
+async fn service_withdrawal_updates_balances_and_records_transaction(pool: PgPool) {
+    let (nfc, agent_ref) = seed_withdrawal_data(&pool).await;
+    let redis: RedisPool = None;
+
+    let input = WithdrawalRequest {
+        client_code: nfc.clone(),
+        withdrawal_amount: 100.0,
+        client_password: "wd.pass".into(),
+        agent_code: agent_ref.clone(),
+        currency_type: "CDF".into(),
+    };
+
+    let response = transaction_service::withdrawal(&pool, &input, &redis)
+        .await
+        .unwrap();
+
+    assert_eq!(response.message, "Withdrawal successful");
+    assert_eq!(response.client_balance, 9895.0);
+    assert_eq!(response.agent_balance, 600.0);
+
+    let card_balance: f64 =
+        sqlx::query_scalar("SELECT amount::FLOAT8 FROM card_details WHERE nfc_ref = $1")
+            .bind(&nfc)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!((card_balance - 9895.0).abs() < 1e-6);
+
+    let house_balance: f64 =
+        sqlx::query_scalar("SELECT balance::FLOAT8 FROM agent_accounts WHERE agent_ref = $1")
+            .bind(HOUSE_ACCOUNT_REF)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!((house_balance - 5.0).abs() < 1e-6);
+}
+
+#[sqlx::test]
+#[allow(deprecated)]
+async fn service_list_returns_transactions(pool: PgPool) {
+    let (nfc, agent_ref) = seed_withdrawal_data(&pool).await;
+    let redis: RedisPool = None;
+
+    let input = WithdrawalRequest {
+        client_code: nfc,
+        withdrawal_amount: 50.0,
+        client_password: "wd.pass".into(),
+        agent_code: agent_ref.clone(),
+        currency_type: "CDF".into(),
+    };
+    transaction_service::withdrawal(&pool, &input, &redis)
+        .await
+        .unwrap();
+
+    let rows = transaction_service::list(&pool).await.unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].agent_account.as_deref(), Some(agent_ref.as_str()));
+}
+
+#[sqlx::test]
+#[allow(deprecated)]
+async fn service_list_by_agent_filters_rows(pool: PgPool) {
+    seed_agent(&pool, "AGENT-A", "Svc Agent A", "pw", 0.0).await;
+    seed_agent(&pool, "AGENT-B", "Svc Agent B", "pw", 0.0).await;
+
+    sqlx::query(
+        "INSERT INTO transactions
+         (id, transaction_type, client_account, agent_account, amount, currency_code, commission)
+         VALUES ($1, 'WITHDRAWAL', 'C-A', 'AGENT-A', 10.0, 'CDF', 1.0)",
+    )
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO transactions
+         (id, transaction_type, client_account, agent_account, amount, currency_code, commission)
+         VALUES ($1, 'WITHDRAWAL', 'C-B', 'AGENT-B', 20.0, 'CDF', 2.0)",
+    )
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let agent_a_rows = transaction_service::list_by_agent(&pool, "AGENT-A")
+        .await
+        .unwrap();
+    assert_eq!(agent_a_rows.len(), 1);
+    assert_eq!(agent_a_rows[0].agent_account.as_deref(), Some("AGENT-A"));
+
+    let missing_rows = transaction_service::list_by_agent(&pool, "NOPE")
+        .await
+        .unwrap();
+    assert!(missing_rows.is_empty());
 }
