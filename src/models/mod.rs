@@ -10,6 +10,7 @@ pub mod commission;
 pub mod commission_tier;
 pub mod consumption;
 pub mod customer;
+pub mod pagination;
 pub mod price;
 pub mod transaction;
 pub mod user;

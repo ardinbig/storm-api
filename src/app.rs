@@ -21,7 +21,7 @@ use axum::{
     http::{Method, StatusCode, header},
     middleware::{self, Next},
     response::Response,
-    routing::post,
+    routing::{get, post},
 };
 use std::{
     sync::{Arc, atomic::Ordering},
@@ -55,6 +55,10 @@ use crate::{
         customer::{
             Customer, CustomerByCardResponse, RegisterCustomerRequest, UpdateCustomerRequest,
         },
+        pagination::{
+            ActivityItem, ActivityQuery, ConsumptionQuery, PaginatedActivityResponse,
+            PaginatedConsumptionResponse, PaginatedTransactionResponse, TransactionQuery,
+        },
         price::{CreatePriceRequest, FuelPrice},
         transaction::{Transaction, WithdrawalRequest, WithdrawalResponse},
         user::{AuthResponse, CurrentUser, LoginRequest, MeResponse, RegisterRequest, UserInfo},
@@ -74,7 +78,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 #[openapi(
     info(
         title = "Storm API",
-        version = "0.1.1",
+        version = "0.1.2",
         description = "Fuel station management REST API — NFC card balances, agent withdrawals with commission, fuel consumption logging, and MLM loyalty bonuses.",
     ),
     paths(
@@ -122,6 +126,8 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
         transaction_handler::list_transactions,
         transaction_handler::list_by_agent,
         transaction_handler::withdrawal,
+        // Activity (unified feed)
+        transaction_handler::list_activity,
         // Commissions
         commission_handler::list_commissions,
         commission_handler::get_current,
@@ -165,6 +171,9 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
             FuelPrice, CreatePriceRequest,
             // Health
             health_handler::MetricsResponse,
+            // Pagination
+            ActivityItem, ActivityQuery, TransactionQuery, ConsumptionQuery,
+            PaginatedTransactionResponse, PaginatedConsumptionResponse, PaginatedActivityResponse,
         ),
     ),
     tags(
@@ -177,6 +186,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
         (name = "Customers", description = "Customer profiles and enrollment"),
         (name = "Consumptions", description = "Fuel consumption logging"),
         (name = "Transactions", description = "Financial transactions and withdrawals"),
+        (name = "Activity", description = "Unified paginated feed of withdrawals and consumptions"),
         (name = "Commissions", description = "Withdrawal commission rates"),
         (name = "Commission Tiers", description = "MLM loyalty bonus tiers"),
         (name = "Prices", description = "Fuel pricing"),
@@ -224,6 +234,7 @@ impl utoipa::Modify for SecurityAddon {
 /// | `/api/v1/consumptions` | **Yes** | [`routes::consumptions`] |
 /// | `/api/v1/agents` | **Yes** | [`routes::agents`] |
 /// | `/api/v1/transactions` | **Yes** | [`routes::transactions`] |
+/// | `/api/v1/activity` | **Yes** | [`transaction_handler::list_activity`] |
 /// | `/api/v1/commissions` | **Yes** | [`routes::commissions`] |
 /// | `/api/v1/commission-tiers` | **Yes** | [`routes::commission_tiers`] |
 /// | `/api/v1/prices` | **Yes** | [`routes::prices`] |
@@ -250,10 +261,9 @@ pub fn create_app(state: AppState) -> Router {
         .nest("/api/v1/agents", routes::agents::routes())
         // TODO(ardinbig): Implement pagination for customers list (add metadata)
         .nest("/api/v1/customers", routes::customers::routes())
-        // TODO(ardinbig) Implement pagination for consumptions list
         .nest("/api/v1/consumptions", routes::consumptions::routes())
-        // TODO(ardinbig): Implement pagination for transaction list
         .nest("/api/v1/transactions", routes::transactions::routes())
+        .route("/api/v1/activity", get(transaction_handler::list_activity))
         .nest("/api/v1/commissions", routes::commissions::routes())
         .nest(
             "/api/v1/commission-tiers",

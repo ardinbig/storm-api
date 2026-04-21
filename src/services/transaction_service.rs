@@ -6,13 +6,17 @@
 //! transaction, credits the agent and house account, and debits the
 //! customer's card.
 
-use sqlx::PgPool;
+use sqlx::{PgPool, QueryBuilder};
 use uuid::Uuid;
 
 use crate::{
     errors::AppError,
     models::{
         agent::HOUSE_ACCOUNT_REF,
+        pagination::{
+            ActivityItem, ActivityQuery, PAGE_SIZE, PaginatedActivityResponse,
+            PaginatedTransactionResponse, TransactionQuery,
+        },
         transaction::{Transaction, WithdrawalRequest, WithdrawalResponse},
     },
     services::auth_service,
@@ -26,9 +30,15 @@ const TX_COLUMNS: &str = "id, date, transaction_type, client_account, agent_acco
 
 /// Lists all transactions, most recent first.
 ///
+/// # Deprecated
+///
+/// Prefer [`list_paginated`] which includes pagination metadata and supports
+/// `agent_ref` / `station_id` filters.
+///
 /// # Errors
 ///
 /// Returns [`AppError::Database`] on query failure.
+#[deprecated(note = "Use list_paginated instead")]
 pub async fn list(pool: &PgPool) -> Result<Vec<Transaction>, AppError> {
     Ok(sqlx::query_as::<_, Transaction>(&format!(
         "SELECT {TX_COLUMNS} FROM transactions ORDER BY date DESC"
@@ -39,9 +49,14 @@ pub async fn list(pool: &PgPool) -> Result<Vec<Transaction>, AppError> {
 
 /// Lists transactions for a specific agent, most recent first.
 ///
+/// # Deprecated
+///
+/// Prefer `list_paginated` with `agent_ref` query parameter instead.
+///
 /// # Errors
 ///
 /// Returns [`AppError::Database`] on query failure.
+#[deprecated(note = "Use list_paginated with agent_ref filter instead")]
 pub async fn list_by_agent(pool: &PgPool, agent_ref: &str) -> Result<Vec<Transaction>, AppError> {
     Ok(sqlx::query_as::<_, Transaction>(&format!(
         "SELECT {TX_COLUMNS} FROM transactions WHERE agent_account = $1 ORDER BY date DESC"
@@ -49,6 +64,146 @@ pub async fn list_by_agent(pool: &PgPool, agent_ref: &str) -> Result<Vec<Transac
     .bind(agent_ref)
     .fetch_all(pool)
     .await?)
+}
+
+// Paginated list
+// ==============
+
+/// Appends optional `agent_ref` and `station_id` WHERE clauses to a
+/// transaction `QueryBuilder`.  The builder must already contain `WHERE 1=1`.
+fn push_tx_filters<'q>(qb: &mut QueryBuilder<'q, sqlx::Postgres>, query: &'q TransactionQuery) {
+    if let Some(ref ar) = query.agent {
+        qb.push(" AND t.agent_account = ").push_bind(ar.as_str());
+    }
+    if let Some(sid) = query.station {
+        qb.push(" AND a.station_id = ").push_bind(sid);
+    }
+}
+
+/// Appends optional `kind`, `agent`, and `station` WHERE clauses to an
+/// activity `QueryBuilder`.  The builder must already contain `WHERE 1=1`.
+fn push_activity_filters<'q>(qb: &mut QueryBuilder<'q, sqlx::Postgres>, query: &'q ActivityQuery) {
+    if let Some(ref k) = query.kind {
+        qb.push(" AND kind = ").push_bind(k.as_str());
+    }
+    if let Some(ref ar) = query.agent {
+        qb.push(" AND agent_ref = ").push_bind(ar.as_str());
+    }
+    if let Some(sid) = query.station {
+        qb.push(" AND station_id = ").push_bind(sid);
+    }
+}
+
+/// Returns a paginated list of transactions, optionally filtered by agent
+/// reference code and/or the station (system-user UUID) the agent belongs to.
+///
+/// # Errors
+///
+/// Returns [`AppError::Database`] on query failure.
+pub async fn list_paginated(
+    pool: &PgPool,
+    query: &TransactionQuery,
+) -> Result<PaginatedTransactionResponse, AppError> {
+    let page = query.page.unwrap_or(1).max(1);
+    let offset = ((page - 1) as i64) * (PAGE_SIZE as i64);
+
+    // Data query
+    let mut qb: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(
+        "SELECT t.id, t.date, t.transaction_type, t.client_account, t.agent_account, \
+         t.amount::FLOAT8 AS amount, t.currency_code, t.commission::FLOAT8 AS commission \
+         FROM transactions t \
+         LEFT JOIN agent_accounts a ON a.agent_ref = t.agent_account \
+         WHERE 1=1",
+    );
+    push_tx_filters(&mut qb, query);
+    qb.push(" ORDER BY t.date DESC LIMIT ")
+        .push_bind(PAGE_SIZE as i64)
+        .push(" OFFSET ")
+        .push_bind(offset);
+    let data = qb.build_query_as::<Transaction>().fetch_all(pool).await?;
+
+    // Count query
+    let mut cqb: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(
+        "SELECT COUNT(*) FROM transactions t \
+         LEFT JOIN agent_accounts a ON a.agent_ref = t.agent_account \
+         WHERE 1=1",
+    );
+    push_tx_filters(&mut cqb, query);
+    let (total_items,): (i64,) = cqb.build_query_as().fetch_one(pool).await?;
+
+    Ok(PaginatedTransactionResponse::new(data, page, total_items))
+}
+
+// Unified activity feed
+// ======================
+
+/// SQL CTE that unions withdrawals and consumptions into a common shape.
+///
+/// Columns: `date`, `kind` (`"WITHDRAWAL"` | `"CONSUMPTION"`), `agent_ref`,
+/// `client_ref`, `amount`, `station_id`.
+const ACTIVITY_CTE: &str = "\
+    WITH activity AS ( \
+        SELECT t.date, 'WITHDRAWAL'::TEXT AS kind, \
+               t.agent_account AS agent_ref, t.client_account AS client_ref, \
+               t.amount::FLOAT8 AS amount, a.station_id \
+        FROM transactions t \
+        LEFT JOIN agent_accounts a ON a.agent_ref = t.agent_account \
+        UNION ALL \
+        SELECT c.consumption_date AS date, 'CONSUMPTION'::TEXT AS kind, \
+               c.username AS agent_ref, c.client_ref, \
+               (c.quantity * c.price)::FLOAT8 AS amount, a.station_id \
+        FROM consumptions c \
+        LEFT JOIN agent_accounts a ON a.agent_ref = c.username \
+    ) SELECT date, kind, agent_ref, client_ref, amount, station_id \
+      FROM activity WHERE 1=1";
+
+/// SQL CTE variant that returns only `COUNT(*)`.
+const ACTIVITY_COUNT_CTE: &str = "\
+    WITH activity AS ( \
+        SELECT t.date, 'WITHDRAWAL'::TEXT AS kind, \
+               t.agent_account AS agent_ref, t.client_account AS client_ref, \
+               t.amount::FLOAT8 AS amount, a.station_id \
+        FROM transactions t \
+        LEFT JOIN agent_accounts a ON a.agent_ref = t.agent_account \
+        UNION ALL \
+        SELECT c.consumption_date AS date, 'CONSUMPTION'::TEXT AS kind, \
+               c.username AS agent_ref, c.client_ref, \
+               (c.quantity * c.price)::FLOAT8 AS amount, a.station_id \
+        FROM consumptions c \
+        LEFT JOIN agent_accounts a ON a.agent_ref = c.username \
+    ) SELECT COUNT(*) FROM activity WHERE 1=1";
+
+/// Returns a paginated unified activity feed combining withdrawals and
+/// consumptions.
+///
+/// Optionally filter by `kind` (`"WITHDRAWAL"` | `"CONSUMPTION"`), `agent_ref`,
+/// or `station_id`.  Results are ordered most-recent-first.
+///
+/// # Errors
+///
+/// Returns [`AppError::Database`] on query failure.
+pub async fn list_activity(
+    pool: &PgPool,
+    query: &ActivityQuery,
+) -> Result<PaginatedActivityResponse, AppError> {
+    let page = query.page.unwrap_or(1).max(1);
+    let offset = ((page - 1) as i64) * (PAGE_SIZE as i64);
+
+    // Data query
+    let mut qb: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(ACTIVITY_CTE);
+    push_activity_filters(&mut qb, query);
+    qb.push(" ORDER BY date DESC LIMIT ")
+        .push_bind(PAGE_SIZE as i64)
+        .push(" OFFSET ")
+        .push_bind(offset);
+    let data = qb.build_query_as::<ActivityItem>().fetch_all(pool).await?;
+
+    // Count query
+    let mut cqb: QueryBuilder<sqlx::Postgres> = QueryBuilder::new(ACTIVITY_COUNT_CTE);
+    push_activity_filters(&mut cqb, query);
+    let (total_items,): (i64,) = cqb.build_query_as().fetch_one(pool).await?;
+
+    Ok(PaginatedActivityResponse::new(data, page, total_items))
 }
 
 // Pure helpers — extracted for unit-testing without a database
