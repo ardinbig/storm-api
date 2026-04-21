@@ -40,6 +40,8 @@ pub struct Agent {
     pub balance: Option<f64>,
     /// ISO currency code (typically `"CDF"`).
     pub currency_code: String,
+    /// The station (system user) this agent belongs to, if any.
+    pub station_id: Option<Uuid>,
 }
 
 /// Request body for `POST /api/v1/agents/login`.
@@ -125,6 +127,8 @@ pub struct AgentInfo {
     pub balance: Option<f64>,
     /// ISO currency code.
     pub currency_code: String,
+    /// The station (system user UUID) this agent belongs to, if any.
+    pub station_id: Option<Uuid>,
 }
 
 /// Converts a full [`Agent`] database row into the password-free [`AgentInfo`]
@@ -137,6 +141,7 @@ impl From<Agent> for AgentInfo {
             name: a.name,
             balance: a.balance,
             currency_code: a.currency_code,
+            station_id: a.station_id,
         }
     }
 }
@@ -152,6 +157,8 @@ pub struct CreateAgentRequest {
     pub password: String,
     /// ISO currency code; defaults to `"CDF"` when omitted.
     pub currency_code: Option<String>,
+    /// The station (system user UUID) this agent belongs to.
+    pub station_id: Option<Uuid>,
 }
 
 /// Request body for `PATCH /api/v1/agents/{id}`.
@@ -164,4 +171,7 @@ pub struct UpdateAgentRequest {
     pub name: Option<String>,
     /// ISO currency code.
     pub currency_code: Option<String>,
+    /// The station (system user UUID) this agent belongs to.
+    /// Pass `null` explicitly via JSON to unlink the agent from a station.
+    pub station_id: Option<Uuid>,
 }

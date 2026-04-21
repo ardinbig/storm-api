@@ -40,14 +40,41 @@ pub async fn seed_customer(pool: &PgPool, client_code: &str, first_name: &str, n
 pub async fn seed_agent(pool: &PgPool, agent_ref: &str, name: &str, password: &str, balance: f64) {
     let hash = storm_api::services::auth_service::hash_password(password).unwrap();
     sqlx::query(
-        "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
-         VALUES ($1, $2, $3, $4, $5, 'CDF')",
+        "INSERT INTO agent_accounts
+             (id, agent_ref, name, password, balance, currency_code, station_id)
+         VALUES ($1, $2, $3, $4, $5, 'CDF', NULL)",
     )
     .bind(Uuid::new_v4())
     .bind(agent_ref)
     .bind(name)
     .bind(&hash)
     .bind(balance)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+/// Insert an agent account linked to a station (system user).
+pub async fn seed_agent_with_station(
+    pool: &PgPool,
+    agent_ref: &str,
+    name: &str,
+    password: &str,
+    balance: f64,
+    station_id: Uuid,
+) {
+    let hash = storm_api::services::auth_service::hash_password(password).unwrap();
+    sqlx::query(
+        "INSERT INTO agent_accounts
+             (id, agent_ref, name, password, balance, currency_code, station_id)
+         VALUES ($1, $2, $3, $4, $5, 'CDF', $6)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(agent_ref)
+    .bind(name)
+    .bind(&hash)
+    .bind(balance)
+    .bind(station_id)
     .execute(pool)
     .await
     .unwrap();

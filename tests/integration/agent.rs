@@ -1,6 +1,6 @@
 use crate::common::{
-    body_to_value, create_test_app, create_test_app_with_token, seed_agent, seed_card,
-    seed_house_account,
+    body_to_value, create_test_app, create_test_app_with_token, seed_agent,
+    seed_agent_with_station, seed_card, seed_house_account,
 };
 use axum::{
     Router,
@@ -111,8 +111,8 @@ async fn agent_login_nonexistent(pool: PgPool) {
 #[sqlx::test]
 async fn agent_login_no_password_in_db(pool: PgPool) {
     sqlx::query(
-        "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
-         VALUES ($1, 'AGENT-NO.PASS', 'No Pass Agent', NULL, 0, 'CDF')",
+        "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code, station_id)
+         VALUES ($1, 'AGENT-NO.PASS', 'No Pass Agent', NULL, 0, 'CDF', NULL)",
     )
     .bind(Uuid::new_v4())
     .execute(&pool)
@@ -397,8 +397,8 @@ async fn agent_update_password_nonexistent(pool: PgPool) {
 #[sqlx::test]
 async fn agent_update_password_null_stored(pool: PgPool) {
     sqlx::query(
-        "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
-         VALUES ($1, 'AGENT-NULL.PW', 'Null Pw', NULL, 0, 'CDF')",
+        "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code, station_id)
+         VALUES ($1, 'AGENT-NULL.PW', 'Null Pw', NULL, 0, 'CDF', NULL)",
     )
     .bind(Uuid::new_v4())
     .execute(&pool)
@@ -416,4 +416,185 @@ async fn agent_update_password_null_stored(pool: PgPool) {
     .await;
 
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+// Station (user) link tests
+// =========================
+
+#[sqlx::test]
+async fn create_agent_with_station_id(pool: PgPool) {
+    let user = storm_api::services::user_service::register(
+        &pool,
+        &storm_api::models::user::RegisterRequest {
+            name: "Station Alpha".into(),
+            email: None,
+            username: "station.alpha".into(),
+            password: "pass".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let (mut app, token) = create_test_app_with_token(pool).await;
+
+    let (status, body) = auth_post(
+        &mut app,
+        "/api/v1/agents",
+        json!({
+            "agent_ref": "AG-STATION-001",
+            "name": "Station Agent",
+            "password": "pass",
+            "station_id": user.id
+        }),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(body["station_id"], user.id.to_string());
+}
+
+#[sqlx::test]
+async fn create_agent_without_station_id_has_null_station(pool: PgPool) {
+    let (mut app, token) = create_test_app_with_token(pool).await;
+
+    let (status, body) = auth_post(
+        &mut app,
+        "/api/v1/agents",
+        json!({"agent_ref": "AG-NO-STATION", "name": "Free Agent", "password": "pass"}),
+        &token,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(body["station_id"].is_null());
+}
+
+#[sqlx::test]
+async fn update_agent_assigns_station(pool: PgPool) {
+    let user = storm_api::services::user_service::register(
+        &pool,
+        &storm_api::models::user::RegisterRequest {
+            name: "Station Beta".into(),
+            email: None,
+            username: "station.beta".into(),
+            password: "pass".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let (mut app, token) = create_test_app_with_token(pool).await;
+
+    let (_, agent) = auth_post(
+        &mut app,
+        "/api/v1/agents",
+        json!({"agent_ref": "AG-ASSIGN-STA", "name": "Unassigned", "password": "pass"}),
+        &token,
+    )
+    .await;
+    let uri = format!("/api/v1/agents/{}", agent["id"].as_str().unwrap());
+
+    let (status, body) = auth_patch(&mut app, &uri, json!({"station_id": user.id}), &token).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["station_id"], user.id.to_string());
+}
+
+#[sqlx::test]
+async fn get_agent_exposes_station_id(pool: PgPool) {
+    let user = storm_api::services::user_service::register(
+        &pool,
+        &storm_api::models::user::RegisterRequest {
+            name: "Station Gamma".into(),
+            email: None,
+            username: "station.gamma".into(),
+            password: "pass".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    seed_agent_with_station(&pool, "AG-GET-STA", "Get Station", "pass", 0.0, user.id).await;
+
+    let (mut app, token) = create_test_app_with_token(pool.clone()).await;
+
+    let row: (Uuid,) =
+        sqlx::query_as("SELECT id FROM agent_accounts WHERE agent_ref = 'AG-GET-STA'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    let (status, body) = auth_get(&mut app, &format!("/api/v1/agents/{}", row.0), &token).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["station_id"], user.id.to_string());
+}
+
+#[sqlx::test]
+async fn list_agents_includes_station_id_field(pool: PgPool) {
+    let user = storm_api::services::user_service::register(
+        &pool,
+        &storm_api::models::user::RegisterRequest {
+            name: "Station Delta".into(),
+            email: None,
+            username: "station.delta".into(),
+            password: "pass".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    seed_agent_with_station(&pool, "AG-LIST-STA", "Listed Agent", "pass", 0.0, user.id).await;
+
+    let (mut app, token) = create_test_app_with_token(pool).await;
+
+    let (status, body) = auth_get(&mut app, "/api/v1/agents", &token).await;
+
+    assert_eq!(status, StatusCode::OK);
+    let agents = body.as_array().unwrap();
+    let found = agents
+        .iter()
+        .find(|a| a["agent_ref"] == "AG-LIST-STA")
+        .unwrap();
+    assert_eq!(found["station_id"], user.id.to_string());
+}
+
+#[sqlx::test]
+async fn deleting_station_user_clears_agent_station_id(pool: PgPool) {
+    let user = storm_api::services::user_service::register(
+        &pool,
+        &storm_api::models::user::RegisterRequest {
+            name: "Station Ephemeral".into(),
+            email: None,
+            username: "station.ephemeral".into(),
+            password: "pass".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    seed_agent_with_station(
+        &pool,
+        "AG-DEL-STA",
+        "Agent Del Station",
+        "pass",
+        0.0,
+        user.id,
+    )
+    .await;
+
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(user.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let station_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT station_id FROM agent_accounts WHERE agent_ref = 'AG-DEL-STA'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    assert!(station_id.is_none());
 }
