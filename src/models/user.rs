@@ -1,7 +1,8 @@
 //! System user types for authentication and authorization.
 //!
 //! The `users` table holds station/operator accounts that log in via
-//! `/api/v1/auth/login` and receive a JWT with `role = "user"`.
+//! `/api/v1/auth/login` and receive a JWT with `role = "user"`, except
+//! for `suadmin`, which receives `role = "admin"`.
 
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -58,7 +59,8 @@ pub struct Claims {
     pub exp: i64,
     /// Issued-at timestamp (Unix epoch seconds).
     pub iat: i64,
-    /// Role indicator: `"user"` for system users, `"agent"` for agents.
+    /// Role indicator: `"admin"` for `suadmin`, `"user"` for other system
+    /// users, and `"agent"` for agents.
     pub role: String,
 }
 
@@ -68,7 +70,7 @@ pub struct Claims {
 pub struct CurrentUser {
     /// The authenticated user's or agent's UUID (as a string).
     pub id: String,
-    /// `"user"` or `"agent"`.
+    /// `"admin"`, `"user"`, or `"agent"`.
     pub role: String,
 }
 
@@ -99,6 +101,6 @@ pub struct UserInfo {
 pub struct MeResponse {
     /// The authenticated user's or agent's UUID (as a string).
     pub id: String,
-    /// `"user"` or `"agent"`.
+    /// `"admin"`, `"user"`, or `"agent"`.
     pub role: String,
 }

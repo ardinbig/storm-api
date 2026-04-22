@@ -176,7 +176,7 @@ async fn seed_super_admin_fails_when_env_absent(pool: PgPool) {
 
 #[sqlx::test]
 #[serial_test::serial]
-async fn seed_super_admin_issued_token_carries_user_role(pool: PgPool) {
+async fn seed_super_admin_issued_token_carries_admin_role(pool: PgPool) {
     unsafe {
         std::env::set_var("SUPER_ADMIN_PASSWORD", "RoleCheckPass1");
     }
@@ -191,6 +191,35 @@ async fn seed_super_admin_issued_token_carries_user_role(pool: PgPool) {
     };
 
     let auth = user_service::authenticate(&pool, &config, "suadmin", "RoleCheckPass1")
+        .await
+        .unwrap();
+
+    let claims = storm_api::services::auth_service::verify_token(&config, &auth.token).unwrap();
+
+    assert_eq!(claims.role, "admin");
+}
+
+#[sqlx::test]
+#[serial_test::serial]
+async fn regular_system_user_issued_token_still_carries_user_role(pool: PgPool) {
+    user_service::register(
+        &pool,
+        &storm_api::models::user::RegisterRequest {
+            name: "Alice".into(),
+            email: Some("alice@example.com".into()),
+            username: "alice".into(),
+            password: "alice.pass".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let config = storm_api::state::app_state::AuthConfig {
+        jwt_secret: "role-check-secret".into(),
+        jwt_expiry_hours: 24,
+    };
+
+    let auth = user_service::authenticate(&pool, &config, "alice", "alice.pass")
         .await
         .unwrap();
 
