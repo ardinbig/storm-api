@@ -98,16 +98,21 @@ pub async fn get_by_id(pool: &PgPool, id: Uuid) -> Result<Card, AppError> {
 /// constraint violation.
 pub async fn create(pool: &PgPool, input: &CreateCardRequest) -> Result<Card, AppError> {
     let id = Uuid::new_v4();
-    let card = sqlx::query_as::<_, Card>(
+    match sqlx::query_as::<_, Card>(
         "INSERT INTO cards (id, card_id) VALUES ($1, $2)
          RETURNING id, card_id, status",
     )
     .bind(id)
     .bind(&input.card_id)
     .fetch_one(pool)
-    .await?;
-
-    Ok(card)
+    .await
+    {
+        Ok(card) => Ok(card),
+        Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => {
+            Err(AppError::Conflict("Card ID already exists".to_string()))
+        }
+        Err(err) => Err(AppError::Database(err)),
+    }
 }
 
 /// Password-protected balance inquiry.
