@@ -82,7 +82,7 @@ pub async fn get_by_id(pool: &PgPool, id: Uuid) -> Result<Card, AppError> {
         .bind(id)
         .fetch_optional(pool)
         .await?
-        .ok_or_else(|| AppError::NotFound("Card not found".to_string()))?;
+        .ok_or_else(|| AppError::NotFound("Card not found".into()))?;
 
     Ok(card)
 }
@@ -109,7 +109,7 @@ pub async fn create(pool: &PgPool, input: &CreateCardRequest) -> Result<Card, Ap
     {
         Ok(card) => Ok(card),
         Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => {
-            Err(AppError::Conflict("Card ID already exists".to_string()))
+            Err(AppError::Conflict("Card ID already exists".into()))
         }
         Err(err) => Err(AppError::Database(err)),
     }
@@ -134,7 +134,7 @@ pub async fn check_balance(
     // excluded from cached values.
     let card = get_detail_by_nfc(pool, nfc_ref, &None)
         .await?
-        .ok_or_else(|| AppError::NotFound("Card not found".to_string()))?;
+        .ok_or_else(|| AppError::NotFound("Card not found".into()))?;
 
     let stored_hash = card.password.as_deref().ok_or(AppError::Unauthorized)?;
     if !auth_service::verify_password(password, stored_hash) {

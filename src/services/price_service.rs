@@ -61,9 +61,9 @@ pub async fn get_by_type(
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| {
-        AppError::NotFound(format!(
-            "No price found for consumption type: {consumption_type}"
-        ))
+        AppError::NotFound(
+            format!("No price found for consumption type: {consumption_type}").into(),
+        )
     })?;
 
     cache::set(redis, &key, &price, PRICE_TTL).await;
