@@ -14,6 +14,7 @@ services:
       - ./migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
       - ./migrations/002_agent_station_link.sql:/docker-entrypoint-initdb.d/002_agent_station_link.sql:ro
       - ./migrations/003_protect_suadmin.sql:/docker-entrypoint-initdb.d/003_protect_suadmin.sql:ro
+      - ./migrations/004_house_account.sql:/docker-entrypoint-initdb.d/004_house_account.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -p ${POSTGRES_PORT}"]
       interval: 10s

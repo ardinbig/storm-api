@@ -12,7 +12,7 @@ use crate::{
     errors::AppError,
     models::agent::{
         Agent, AgentAuthResponse, AgentHistoryRow, AgentInfo, AgentLoginRequest,
-        AgentRegisterCustomerRequest, CreateAgentRequest, HOUSE_ACCOUNT_REF,
+        AgentRegisterCustomerRequest, CreateAgentRequest, DEFAULT_NETWORK, HOUSE_ACCOUNT_REF,
         UpdateAgentPasswordRequest, UpdateAgentRequest,
     },
     services::{auth_service, card_service},
@@ -48,13 +48,13 @@ const INSERT_CUSTOMER: &str = "\
     INSERT INTO customers \
         (id, client_code, first_name, middle_name, last_name, address, \
          networks, phone, category_ref, card_id, gender, marital_status, affiliation) \
-    VALUES ($1, $2, $3, $4, $5, $6, 'STORM-NETWORK-0000', $7, \
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, \
             (SELECT id FROM categories WHERE name = 'Motorbike' LIMIT 1), \
-            $8, $9, $10, $11)";
+            $9, $10, $11, $12)";
 
 const INSERT_CARD_DETAIL: &str = "\
     INSERT INTO card_details (nfc_ref, client_code, password, network) \
-    VALUES ($1, $2, $3, 'STORM-NETWORK-0000') \
+    VALUES ($1, $2, $3, $4) \
     ON CONFLICT (nfc_ref) DO UPDATE SET \
         client_code = EXCLUDED.client_code, \
         password    = EXCLUDED.password, \
@@ -288,6 +288,7 @@ pub async fn register_customer(
         .bind(&input.middle_name)
         .bind(&input.last_name)
         .bind(&input.address)
+        .bind(DEFAULT_NETWORK)
         .bind(&input.phone)
         .bind(&input.card_id)
         .bind(&input.gender)
@@ -300,6 +301,7 @@ pub async fn register_customer(
         .bind(&input.card_id)
         .bind(&client_code)
         .bind(&default_password_hash)
+        .bind(DEFAULT_NETWORK)
         .execute(&mut *tx)
         .await?;
 
@@ -307,6 +309,27 @@ pub async fn register_customer(
 
     // Invalidate cached card detail for this NFC ref
     cache::del(redis, &cache::card_detail_key(&input.card_id)).await;
+
+    Ok(())
+}
+
+/// Ensures the house commission account exists.
+///
+/// The row is treated as immutable infrastructure and is created only when
+/// missing.
+///
+/// # Errors
+///
+/// Returns [`AppError::Database`] on constraint violation or query failure.
+pub async fn seed_house_account(pool: &PgPool) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
+         VALUES (gen_random_uuid(), $1, 'House Account', NULL, 0, 'CDF')
+         ON CONFLICT (agent_ref) DO NOTHING",
+    )
+    .bind(HOUSE_ACCOUNT_REF)
+    .execute(pool)
+    .await?;
 
     Ok(())
 }

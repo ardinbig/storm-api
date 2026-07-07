@@ -72,7 +72,7 @@ pub async fn list_by_agent(pool: &PgPool, agent_ref: &str) -> Result<Vec<Transac
 
 /// Appends optional `agent_ref` and `station_id` WHERE clauses to a
 /// transaction `QueryBuilder`.  The builder must already contain `WHERE 1=1`.
-fn push_tx_filters<'q>(qb: &mut QueryBuilder<'q, sqlx::Postgres>, query: &'q TransactionQuery) {
+fn push_tx_filters(qb: &mut QueryBuilder<sqlx::Postgres>, query: &TransactionQuery) {
     if let Some(ref ar) = query.agent {
         qb.push(" AND t.agent_account = ").push_bind(ar.as_str());
     }
@@ -83,7 +83,7 @@ fn push_tx_filters<'q>(qb: &mut QueryBuilder<'q, sqlx::Postgres>, query: &'q Tra
 
 /// Appends optional `kind`, `agent`, and `station` WHERE clauses to an
 /// activity `QueryBuilder`.  The builder must already contain `WHERE 1=1`.
-fn push_activity_filters<'q>(qb: &mut QueryBuilder<'q, sqlx::Postgres>, query: &'q ActivityQuery) {
+fn push_activity_filters(qb: &mut QueryBuilder<sqlx::Postgres>, query: &ActivityQuery) {
     if let Some(ref k) = query.kind {
         qb.push(" AND kind = ").push_bind(k.as_str());
     }
@@ -338,11 +338,16 @@ pub async fn withdrawal(
         .await?;
 
     // 7. Credit commission to house account
-    sqlx::query("UPDATE agent_accounts SET balance = balance + $1 WHERE agent_ref = $2")
-        .bind(commission)
-        .bind(HOUSE_ACCOUNT_REF)
-        .execute(&mut *tx)
-        .await?;
+    let house_credit =
+        sqlx::query("UPDATE agent_accounts SET balance = balance + $1 WHERE agent_ref = $2")
+            .bind(commission)
+            .bind(HOUSE_ACCOUNT_REF)
+            .execute(&mut *tx)
+            .await?;
+
+    if house_credit.rows_affected() == 0 {
+        return Err(AppError::Internal);
+    }
 
     // 8. Deduct from customer card
     sqlx::query("UPDATE card_details SET amount = amount - $1 WHERE id = $2")
