@@ -38,7 +38,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Clippy Linter
-        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   # Run all unit tests after linting passes, ensuring core logic correctness without external dependencies.
   unit-tests:
@@ -55,7 +55,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Execute Unit Tests
-        run: cargo test --locked --test unit
+        run: cargo test --test unit
 
   # Runs integration tests with PostgreSQL and Redis services, applies DB migrations,
   # and ensures the app works end-to-end with real dependencies.
@@ -117,7 +117,7 @@ jobs:
           DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
           REDIS_URL: redis://localhost:6379
           JWT_SECRET: change-me-to-a-random-64-char-string-in-production
-        run: cargo test --locked --test integration -- --include-ignored
+        run: cargo test --test integration -- --include-ignored
 
   # Run code coverage analysis using cargo-llvm-cov and uploads the report to Codecov.
   coverage:
@@ -168,7 +168,7 @@ jobs:
           DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
           REDIS_URL: redis://localhost:6379
           JWT_SECRET: change-me-to-a-random-64-char-string-in-production
-        run: cargo llvm-cov --locked --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "main\.rs" --lcov --output-path lcov.info
+        run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "main\.rs" --lcov --output-path lcov.info
 
       - name: Upload Coverage to Codecov
         if: ${{ !cancelled() }}
@@ -191,4 +191,4 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build Project in Release Mode
-        run: cargo build --release --locked --bin storm-api
+        run: cargo build --release --bin storm-api
