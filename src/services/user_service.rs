@@ -14,7 +14,8 @@ use crate::{
 /// Authenticates a system user by username and password.
 ///
 /// Looks up the user in the `users` table, verifies the password with
-/// Argon2, and on success issues a JWT with `role = "user"`.
+/// Argon2, and on success issues a JWT with `role = "admin"` for
+/// `suadmin` or `role = "user"` for other system users.
 ///
 /// # Errors
 ///
@@ -39,7 +40,13 @@ pub async fn authenticate(
         return Err(AppError::Unauthorized);
     }
 
-    let token = auth_service::create_token(config, &user.id.to_string(), "user")
+    let role = if user.username == "suadmin" {
+        "admin"
+    } else {
+        "user"
+    };
+
+    let token = auth_service::create_token(config, &user.id.to_string(), role)
         .map_err(|_| AppError::Internal)?;
 
     Ok(AuthResponse {

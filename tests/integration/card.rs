@@ -113,9 +113,50 @@ async fn create_duplicate_card_id_returns_error(pool: PgPool) {
         )
         .await
         .unwrap();
-    assert!(
-        resp.status() == StatusCode::CONFLICT || resp.status() == StatusCode::INTERNAL_SERVER_ERROR
-    );
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+    let body = body_to_value(resp.into_body()).await;
+    assert_eq!(body["error"], "Conflict: Card ID already exists");
+    assert_eq!(body["code"], StatusCode::CONFLICT.as_u16());
+}
+
+#[sqlx::test]
+async fn create_card_database_error_when_pool_closed(pool: PgPool) {
+    pool.close().await;
+
+    let input = storm_api::models::card::CreateCardRequest {
+        card_id: "POOL-CLOSED-CARD-001".to_string(),
+    };
+
+    let err = storm_api::services::card_service::create(&pool, &input)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, storm_api::errors::AppError::Database(_)));
+}
+
+#[sqlx::test]
+async fn create_card_non_unique_database_error_returns_internal_server_error(pool: PgPool) {
+    let (mut app, token) = create_test_app_with_token(pool).await;
+
+    // cards.card_id is VARCHAR(255), so this triggers a DB error that is not
+    // a unique-violation conflict.
+    let too_long_card_id = "X".repeat(300);
+    let resp = app
+        .call(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/cards")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({"card_id": too_long_card_id}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = body_to_value(resp.into_body()).await;
+    assert_eq!(body["error"], "Database error");
+    assert_eq!(body["code"], StatusCode::INTERNAL_SERVER_ERROR.as_u16());
 }
 
 // Balance checks
@@ -273,4 +314,16 @@ async fn card_detail_served_from_cache_on_second_call(pool: PgPool) {
         .unwrap();
     assert!(second.is_some());
     assert_eq!(first.unwrap().nfc_ref, second.unwrap().nfc_ref);
+}
+
+#[sqlx::test]
+async fn card_detail_cache_miss_unknown_card_returns_none(pool: PgPool) {
+    let (redis, _container) = setup_redis_pool().await;
+
+    let card =
+        storm_api::services::card_service::get_detail_by_nfc(&pool, "NFC-UNKNOWN-001", &redis)
+            .await
+            .unwrap();
+
+    assert!(card.is_none());
 }

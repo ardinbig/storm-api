@@ -24,9 +24,14 @@ use crate::{
     utils::cache,
 };
 
-/// SQL column list (with Postgres casts) reused across transaction queries.
-const TX_COLUMNS: &str = "id, date, transaction_type, client_account, agent_account, \
-     amount::FLOAT8 AS amount, currency_code, commission::FLOAT8 AS commission";
+/// Precomputed queries, fully expanded at compile time, zero runtime allocation.
+const SELECT_ALL_TX: &str = "SELECT id, date, transaction_type, client_account, agent_account, \
+    amount::FLOAT8 AS amount, currency_code, commission::FLOAT8 AS commission \
+    FROM transactions ORDER BY date DESC";
+
+const SELECT_BY_AGENT_TX: &str = "SELECT id, date, transaction_type, client_account, agent_account, \
+    amount::FLOAT8 AS amount, currency_code, commission::FLOAT8 AS commission \
+    FROM transactions WHERE agent_account = $1 ORDER BY date DESC";
 
 /// Lists all transactions, most recent first.
 ///
@@ -40,11 +45,9 @@ const TX_COLUMNS: &str = "id, date, transaction_type, client_account, agent_acco
 /// Returns [`AppError::Database`] on query failure.
 #[deprecated(note = "Use list_paginated instead")]
 pub async fn list(pool: &PgPool) -> Result<Vec<Transaction>, AppError> {
-    Ok(sqlx::query_as::<_, Transaction>(&format!(
-        "SELECT {TX_COLUMNS} FROM transactions ORDER BY date DESC"
-    ))
-    .fetch_all(pool)
-    .await?)
+    Ok(sqlx::query_as::<_, Transaction>(SELECT_ALL_TX)
+        .fetch_all(pool)
+        .await?)
 }
 
 /// Lists transactions for a specific agent, most recent first.
@@ -58,12 +61,10 @@ pub async fn list(pool: &PgPool) -> Result<Vec<Transaction>, AppError> {
 /// Returns [`AppError::Database`] on query failure.
 #[deprecated(note = "Use list_paginated with agent_ref filter instead")]
 pub async fn list_by_agent(pool: &PgPool, agent_ref: &str) -> Result<Vec<Transaction>, AppError> {
-    Ok(sqlx::query_as::<_, Transaction>(&format!(
-        "SELECT {TX_COLUMNS} FROM transactions WHERE agent_account = $1 ORDER BY date DESC"
-    ))
-    .bind(agent_ref)
-    .fetch_all(pool)
-    .await?)
+    Ok(sqlx::query_as::<_, Transaction>(SELECT_BY_AGENT_TX)
+        .bind(agent_ref)
+        .fetch_all(pool)
+        .await?)
 }
 
 // Paginated list
@@ -71,7 +72,7 @@ pub async fn list_by_agent(pool: &PgPool, agent_ref: &str) -> Result<Vec<Transac
 
 /// Appends optional `agent_ref` and `station_id` WHERE clauses to a
 /// transaction `QueryBuilder`.  The builder must already contain `WHERE 1=1`.
-fn push_tx_filters<'q>(qb: &mut QueryBuilder<'q, sqlx::Postgres>, query: &'q TransactionQuery) {
+fn push_tx_filters(qb: &mut QueryBuilder<sqlx::Postgres>, query: &TransactionQuery) {
     if let Some(ref ar) = query.agent {
         qb.push(" AND t.agent_account = ").push_bind(ar.as_str());
     }
@@ -82,7 +83,7 @@ fn push_tx_filters<'q>(qb: &mut QueryBuilder<'q, sqlx::Postgres>, query: &'q Tra
 
 /// Appends optional `kind`, `agent`, and `station` WHERE clauses to an
 /// activity `QueryBuilder`.  The builder must already contain `WHERE 1=1`.
-fn push_activity_filters<'q>(qb: &mut QueryBuilder<'q, sqlx::Postgres>, query: &'q ActivityQuery) {
+fn push_activity_filters(qb: &mut QueryBuilder<sqlx::Postgres>, query: &ActivityQuery) {
     if let Some(ref k) = query.kind {
         qb.push(" AND kind = ").push_bind(k.as_str());
     }
@@ -337,11 +338,16 @@ pub async fn withdrawal(
         .await?;
 
     // 7. Credit commission to house account
-    sqlx::query("UPDATE agent_accounts SET balance = balance + $1 WHERE agent_ref = $2")
-        .bind(commission)
-        .bind(HOUSE_ACCOUNT_REF)
-        .execute(&mut *tx)
-        .await?;
+    let house_credit =
+        sqlx::query("UPDATE agent_accounts SET balance = balance + $1 WHERE agent_ref = $2")
+            .bind(commission)
+            .bind(HOUSE_ACCOUNT_REF)
+            .execute(&mut *tx)
+            .await?;
+
+    if house_credit.rows_affected() == 0 {
+        return Err(AppError::Internal);
+    }
 
     // 8. Deduct from customer card
     sqlx::query("UPDATE card_details SET amount = amount - $1 WHERE id = $2")

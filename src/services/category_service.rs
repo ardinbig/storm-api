@@ -34,7 +34,7 @@ pub async fn get_by_id(pool: &PgPool, id: Uuid) -> Result<Category, AppError> {
             .bind(id)
             .fetch_optional(pool)
             .await?
-            .ok_or_else(|| AppError::NotFound("Category not found".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("Category not found".into()))?;
 
     Ok(category)
 }

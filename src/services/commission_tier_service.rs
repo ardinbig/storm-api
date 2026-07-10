@@ -43,7 +43,7 @@ pub async fn get_by_category(pool: &PgPool, category: &str) -> Result<Commission
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| {
-        AppError::NotFound(format!("No commission tier found for category: {category}"))
+        AppError::NotFound(format!("No commission tier found for category: {category}").into())
     })?;
 
     Ok(tier)

@@ -138,10 +138,15 @@ async fn agent_login_no_password_in_db(pool: PgPool) {
 async fn list_create_get_delete_agent(pool: PgPool) {
     let (mut app, token) = create_test_app_with_token(pool).await;
 
-    // List (empty)
+    // List (house account is seeded at startup)
     let (status, body) = auth_get(&mut app, "/api/v1/agents", &token).await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.as_array().unwrap().is_empty());
+    let agents = body.as_array().unwrap();
+    assert_eq!(agents.len(), 1);
+    assert_eq!(
+        agents[0]["agent_ref"],
+        storm_api::models::agent::HOUSE_ACCOUNT_REF
+    );
 
     // Create
     let (status, agent) = auth_post(
@@ -211,13 +216,11 @@ async fn delete_agent_not_found(pool: PgPool) {
 async fn cannot_delete_house_account(pool: PgPool) {
     seed_house_account(&pool).await;
 
-    let row: (Uuid,) = sqlx::query_as(&format!(
-        "SELECT id FROM agent_accounts WHERE agent_ref = '{}'",
-        storm_api::models::agent::HOUSE_ACCOUNT_REF
-    ))
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let row: (Uuid,) = sqlx::query_as("SELECT id FROM agent_accounts WHERE agent_ref = $1")
+        .bind(storm_api::models::agent::HOUSE_ACCOUNT_REF)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
     let (mut app, token) = create_test_app_with_token(pool).await;
 

@@ -26,10 +26,7 @@ const CONS_SELECT: &str = "\
 
 /// Appends optional `agent_ref` and `station_id` WHERE clauses to a
 /// consumption `QueryBuilder`.  The builder must already end with `WHERE 1=1`.
-fn push_consumption_filters<'q>(
-    qb: &mut QueryBuilder<'q, sqlx::Postgres>,
-    query: &'q ConsumptionQuery,
-) {
+fn push_consumption_filters(qb: &mut QueryBuilder<sqlx::Postgres>, query: &ConsumptionQuery) {
     if let Some(ref ar) = query.agent {
         qb.push(" AND c.username = ").push_bind(ar.as_str());
     }

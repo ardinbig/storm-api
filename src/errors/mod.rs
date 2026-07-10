@@ -19,6 +19,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
+use std::borrow::Cow;
 use utoipa::ToSchema;
 
 /// Application-wide error type.
@@ -31,11 +32,11 @@ use utoipa::ToSchema;
 pub enum AppError {
     /// The requested resource does not exist. -> `404 Not Found`
     #[error("Not found: {0}")]
-    NotFound(String),
+    NotFound(Cow<'static, str>),
 
     /// The request is semantically invalid. -> `400 Bad Request`
     #[error("Bad request: {0}")]
-    BadRequest(String),
+    BadRequest(Cow<'static, str>),
 
     /// Authentication or authorization failure. -> `401 Unauthorized`
     #[error("Unauthorized")]
@@ -43,7 +44,7 @@ pub enum AppError {
 
     /// A uniqueness or integrity constraint was violated. -> `409 Conflict`
     #[error("Conflict: {0}")]
-    Conflict(String),
+    Conflict(Cow<'static, str>),
 
     /// A database query failed. -> `500 Internal Server Error`
     ///

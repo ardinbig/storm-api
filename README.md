@@ -4,7 +4,7 @@
 
 [![API workflow](https://github.com/ardinbig/storm-api/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ardinbig/storm-api/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/ardinbig/storm-api/graph/badge.svg?token=WcHmafLVMx)](https://codecov.io/github/ardinbig/storm-api)
-[![Rust](https://img.shields.io/badge/Rust-1.94.1%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/Rust-1.96.1%2B-orange.svg)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 `storm-api` is a modular Rust REST API built on [Axum](https://docs.rs/axum), [SQLx](https://docs.rs/sqlx), PostgreSQL, and Redis. It is designed for operational reliability: structured logs, explicit health checks, graceful shutdown, OpenAPI-driven documentation, and a test layout that spans unit, integration, and end-to-end scenarios.
@@ -177,19 +177,18 @@ Graceful shutdown listens for `SIGTERM` / `Ctrl+C`, flips the readiness flag to 
 
 ## Tech Stack
 
-| Layer                 | Technology (crates)                                    |
-|-----------------------|--------------------------------------------------------|
-| Language              | Rust 1.94+                                             |
-| Web framework         | Axum 0.8 + Tower + tower-http                          |
-| Async runtime         | Tokio                                                  |
-| Database              | PostgreSQL 18 via SQLx                                 |
-| Cache / JWT blocklist | Redis 8 via redis-rs (optional - graceful degradation) |
-| Authentication        | JWT via jsonwebtoken, Argon2id via argon2              |
-| Serialization         | serde + serde_json + uuid + chrono                     |
-| Error handling        | thiserror                                              |
-| Observability         | tracing + tracing-subscriber (JSON, env-filter)        |
-| API docs              | utoipa + utoipa-swagger-ui                             |
-| Testing               | sqlx::test, mockall, testcontainers, reqwest           |
-| Containerization      | Docker (multi-stage), Docker Compose                   |
-| CI                    | GitHub Actions                                         |
-
+| Layer                 | Technology (crates)                                  |
+|-----------------------|------------------------------------------------------|
+| Language              | Rust 1.96+                                           |
+| Web framework         | Axum 0.8 + Tower + tower-http                        |
+| Async runtime         | Tokio                                                |
+| Database              | PostgreSQL via SQLx                                  |
+| Cache / JWT blocklist | Redis via redis-rs (optional - graceful degradation) |
+| Authentication        | JWT via jsonwebtoken, Argon2id via argon2            |
+| Serialization         | serde + serde_json + uuid + chrono                   |
+| Error handling        | thiserror                                            |
+| Observability         | tracing + tracing-subscriber (JSON, env-filter)      |
+| API docs              | utoipa + utoipa-swagger-ui                           |
+| Testing               | sqlx::test, mockall, testcontainers, reqwest         |
+| Containerization      | Docker (multi-stage), Docker Compose                 |
+| CI                    | GitHub Actions                                       |

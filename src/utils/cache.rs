@@ -71,7 +71,7 @@ pub async fn del(redis: &RedisPool, key: &str) {
 pub async fn blocklist_token(redis: &RedisPool, token: &str, ttl_secs: u64) {
     let Some(conn) = redis.as_ref() else { return };
     let mut conn = conn.clone();
-    let key = format!("blocklist:{token}");
+    let key = ["blocklist:", token].concat();
     if let Err(e) = conn.set_ex::<_, _, ()>(&key, "1", ttl_secs).await {
         warn!("cache blocklist SET: {e}");
     }
@@ -84,7 +84,7 @@ pub async fn is_blocklisted(redis: &RedisPool, token: &str) -> bool {
         return false;
     };
     let mut conn = conn.clone();
-    let key = format!("blocklist:{token}");
+    let key = ["blocklist:", token].concat();
     conn.exists::<_, bool>(&key).await.unwrap_or_else(|e| {
         warn!("cache blocklist check: {e}");
         false
@@ -96,12 +96,12 @@ pub async fn is_blocklisted(redis: &RedisPool, token: &str) -> bool {
 
 /// Cache key for a card detail looked up by NFC reference.
 pub fn card_detail_key(nfc_ref: &str) -> String {
-    format!("card_detail:{nfc_ref}")
+    ["card_detail:", nfc_ref].concat()
 }
 
 /// Cache key for the current fuel price by consumption type.
 pub fn price_key(consumption_type: &str) -> String {
-    format!("price:{consumption_type}")
+    ["price:", consumption_type].concat()
 }
 
 /// Test-only helper that calls [`set`] with a value guaranteed to fail

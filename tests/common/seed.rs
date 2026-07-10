@@ -82,18 +82,9 @@ pub async fn seed_agent_with_station(
 
 /// Insert the STORM-ACCOUNT-0000 house account.
 pub async fn seed_house_account(pool: &PgPool) {
-    let hash = storm_api::services::auth_service::hash_password("house123").unwrap();
-    sqlx::query(
-        "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
-         VALUES ($1, $2, 'House Account', $3, 0, 'CDF')
-         ON CONFLICT (agent_ref) DO NOTHING",
-    )
-    .bind(Uuid::new_v4())
-    .bind(storm_api::models::agent::HOUSE_ACCOUNT_REF)
-    .bind(&hash)
-    .execute(pool)
-    .await
-    .unwrap();
+    storm_api::services::agent_service::seed_house_account(pool)
+        .await
+        .unwrap();
 }
 
 async fn seed_card_details(

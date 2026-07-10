@@ -43,6 +43,11 @@ async fn main() {
     ))
     .await;
 
+    // Ensure the house commission account and super-admin account exist on every cold start.
+    if let Err(e) = storm_api::services::agent_service::seed_house_account(&pool).await {
+        tracing::error!("Failed to seed house commission account: {e}");
+    }
+
     // Ensure the super-admin account exists on every cold start.
     if let Err(e) = storm_api::services::user_service::seed_super_admin(&pool).await {
         tracing::error!("Failed to seed super-admin account: {e}");

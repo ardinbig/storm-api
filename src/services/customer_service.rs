@@ -45,7 +45,7 @@ pub async fn get_by_id(pool: &PgPool, id: Uuid) -> Result<Customer, AppError> {
     .bind(id)
     .fetch_optional(pool)
     .await?
-    .ok_or_else(|| AppError::NotFound("Customer not found".to_string()))?;
+    .ok_or_else(|| AppError::NotFound("Customer not found".into()))?;
 
     Ok(customer)
 }
@@ -63,7 +63,7 @@ pub async fn get_by_card(pool: &PgPool, card_id: &str) -> Result<CustomerByCardR
             .bind(card_id)
             .fetch_optional(pool)
             .await?
-            .ok_or_else(|| AppError::NotFound("Customer not found for this card".to_string()))?;
+            .ok_or_else(|| AppError::NotFound("Customer not found for this card".into()))?;
 
     Ok(CustomerByCardResponse { client_code: row.0 })
 }
@@ -147,7 +147,7 @@ pub async fn update(
     .bind(input.category_ref)
     .fetch_optional(pool)
     .await?
-    .ok_or_else(|| AppError::NotFound("Customer not found".to_string()))?;
+    .ok_or_else(|| AppError::NotFound("Customer not found".into()))?;
 
     Ok(customer)
 }
@@ -165,7 +165,7 @@ pub async fn delete(pool: &PgPool, id: Uuid) -> Result<(), AppError> {
         .await?;
 
     if result.rows_affected() == 0 {
-        return Err(AppError::NotFound("Customer not found".to_string()));
+        return Err(AppError::NotFound("Customer not found".into()));
     }
 
     Ok(())

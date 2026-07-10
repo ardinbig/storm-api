@@ -37,7 +37,7 @@ pub async fn get_current(pool: &PgPool) -> Result<Commission, AppError> {
     )
     .fetch_optional(pool)
     .await?
-    .ok_or_else(|| AppError::NotFound("No commission rate configured".to_string()))?;
+    .ok_or_else(|| AppError::NotFound("No commission rate configured".into()))?;
 
     Ok(commission)
 }
@@ -94,13 +94,13 @@ pub async fn delete(pool: &PgPool, id: Uuid) -> Result<(), AppError> {
                 .await?;
 
         if !exists {
-            return Err(AppError::NotFound(format!(
-                "Commission with ID {id} not found"
-            )));
+            return Err(AppError::NotFound(
+                format!("Commission with ID {id} not found").into(),
+            ));
         }
 
         return Err(AppError::BadRequest(
-            "At least 2 commission records are required before deleting one".to_string(),
+            "At least 2 commission records are required before deleting one".into(),
         ));
     }
 

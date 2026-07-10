@@ -20,13 +20,45 @@ use crate::{
     utils::{cache, client_code, password},
 };
 
-/// SQL column list reused across agent queries.
-const AGENT_COLUMNS: &str = "id, agent_ref, name, password, balance, currency_code, station_id";
+/// Precomputed queries, all fully expanded at compile time, zero runtime allocation.
+const SELECT_ALL: &str = "SELECT id, agent_ref, name, password, balance, currency_code, station_id \
+    FROM agent_accounts ORDER BY agent_ref";
 
-/// Precomputed queries
-const SELECT_ALL: &str = "SELECT id, agent_ref, name, password, balance, currency_code, station_id FROM agent_accounts ORDER BY agent_ref";
-const SELECT_BY_ID: &str = "SELECT id, agent_ref, name, password, balance, currency_code, station_id FROM agent_accounts WHERE id = $1";
-const SELECT_BY_REF: &str = "SELECT id, agent_ref, name, password, balance, currency_code, station_id FROM agent_accounts WHERE agent_ref = $1";
+const SELECT_BY_ID: &str = "SELECT id, agent_ref, name, password, balance, currency_code, station_id \
+    FROM agent_accounts WHERE id = $1";
+
+const SELECT_BY_REF: &str = "SELECT id, agent_ref, name, password, balance, currency_code, station_id \
+    FROM agent_accounts WHERE agent_ref = $1";
+
+const INSERT_AGENT: &str = "\
+    INSERT INTO agent_accounts \
+    (id, agent_ref, name, password, balance, currency_code, station_id) \
+    VALUES ($1, $2, $3, $4, 0, $5, $6) \
+    RETURNING id, agent_ref, name, password, balance, currency_code, station_id";
+
+const UPDATE_AGENT: &str = "\
+    UPDATE agent_accounts SET \
+        name          = COALESCE($2, name), \
+        currency_code = COALESCE($3, currency_code), \
+        station_id    = COALESCE($4, station_id) \
+    WHERE id = $1 \
+    RETURNING id, agent_ref, name, password, balance, currency_code, station_id";
+
+const INSERT_CUSTOMER: &str = "\
+    INSERT INTO customers \
+        (id, client_code, first_name, middle_name, last_name, address, \
+         networks, phone, category_ref, card_id, gender, marital_status, affiliation) \
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, \
+            (SELECT id FROM categories WHERE name = 'Motorbike' LIMIT 1), \
+            $9, $10, $11, $12)";
+
+const INSERT_CARD_DETAIL: &str = "\
+    INSERT INTO card_details (nfc_ref, client_code, password, network) \
+    VALUES ($1, $2, $3, $4) \
+    ON CONFLICT (nfc_ref) DO UPDATE SET \
+        client_code = EXCLUDED.client_code, \
+        password    = EXCLUDED.password, \
+        network     = EXCLUDED.network";
 
 // Private helpers
 // ===============
@@ -101,19 +133,15 @@ pub async fn create(pool: &PgPool, input: &CreateAgentRequest) -> Result<AgentIn
     let id = Uuid::new_v4();
     let currency = input.currency_code.as_deref().unwrap_or("CDF");
 
-    let agent = sqlx::query_as::<_, Agent>(&format!(
-        "INSERT INTO agent_accounts ({AGENT_COLUMNS})
-         VALUES ($1, $2, $3, $4, 0, $5, $6)
-         RETURNING {AGENT_COLUMNS}"
-    ))
-    .bind(id)
-    .bind(&input.agent_ref)
-    .bind(&input.name)
-    .bind(&hashed)
-    .bind(currency)
-    .bind(input.station_id)
-    .fetch_one(pool)
-    .await?;
+    let agent = sqlx::query_as::<_, Agent>(INSERT_AGENT)
+        .bind(id)
+        .bind(&input.agent_ref)
+        .bind(&input.name)
+        .bind(&hashed)
+        .bind(currency)
+        .bind(input.station_id)
+        .fetch_one(pool)
+        .await?;
 
     Ok(AgentInfo::from(agent))
 }
@@ -132,21 +160,14 @@ pub async fn update(
     id: Uuid,
     input: &UpdateAgentRequest,
 ) -> Result<AgentInfo, AppError> {
-    let agent = sqlx::query_as::<_, Agent>(&format!(
-        "UPDATE agent_accounts SET
-            name          = COALESCE($2, name),
-            currency_code = COALESCE($3, currency_code),
-            station_id    = COALESCE($4, station_id)
-         WHERE id = $1
-         RETURNING {AGENT_COLUMNS}"
-    ))
-    .bind(id)
-    .bind(input.name.as_ref())
-    .bind(input.currency_code.as_ref())
-    .bind(input.station_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Agent not found".into()))?;
+    let agent = sqlx::query_as::<_, Agent>(UPDATE_AGENT)
+        .bind(id)
+        .bind(input.name.as_ref())
+        .bind(input.currency_code.as_ref())
+        .bind(input.station_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Agent not found".into()))?;
 
     Ok(AgentInfo::from(agent))
 }
@@ -260,46 +281,55 @@ pub async fn register_customer(
     let default_password_hash = password::hash("1234")?;
     let customer_id = Uuid::new_v4();
 
-    sqlx::query(&format!(
-        "INSERT INTO customers \
-             (id, client_code, first_name, middle_name, last_name, address, \
-              networks, phone, category_ref, card_id, gender, marital_status, affiliation) \
-         VALUES ($1, $2, $3, $4, $5, $6, '{DEFAULT_NETWORK}', $7, \
-                 (SELECT id FROM categories WHERE name = 'Motorbike' LIMIT 1), \
-                 $8, $9, $10, $11)"
-    ))
-    .bind(customer_id)
-    .bind(&client_code)
-    .bind(&input.first_name)
-    .bind(&input.middle_name)
-    .bind(&input.last_name)
-    .bind(&input.address)
-    .bind(&input.phone)
-    .bind(&input.card_id)
-    .bind(&input.gender)
-    .bind(&input.marital_status)
-    .bind(&input.affiliation)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query(INSERT_CUSTOMER)
+        .bind(customer_id)
+        .bind(&client_code)
+        .bind(&input.first_name)
+        .bind(&input.middle_name)
+        .bind(&input.last_name)
+        .bind(&input.address)
+        .bind(DEFAULT_NETWORK)
+        .bind(&input.phone)
+        .bind(&input.card_id)
+        .bind(&input.gender)
+        .bind(&input.marital_status)
+        .bind(&input.affiliation)
+        .execute(&mut *tx)
+        .await?;
 
-    sqlx::query(&format!(
-        "INSERT INTO card_details (nfc_ref, client_code, password, network) \
-         VALUES ($1, $2, $3, '{DEFAULT_NETWORK}') \
-         ON CONFLICT (nfc_ref) DO UPDATE SET \
-             client_code = EXCLUDED.client_code, \
-             password = EXCLUDED.password, \
-             network = EXCLUDED.network"
-    ))
-    .bind(&input.card_id)
-    .bind(&client_code)
-    .bind(&default_password_hash)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query(INSERT_CARD_DETAIL)
+        .bind(&input.card_id)
+        .bind(&client_code)
+        .bind(&default_password_hash)
+        .bind(DEFAULT_NETWORK)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
     // Invalidate cached card detail for this NFC ref
     cache::del(redis, &cache::card_detail_key(&input.card_id)).await;
+
+    Ok(())
+}
+
+/// Ensures the house commission account exists.
+///
+/// The row is treated as immutable infrastructure and is created only when
+/// missing.
+///
+/// # Errors
+///
+/// Returns [`AppError::Database`] on constraint violation or query failure.
+pub async fn seed_house_account(pool: &PgPool) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO agent_accounts (id, agent_ref, name, password, balance, currency_code)
+         VALUES (gen_random_uuid(), $1, 'House Account', NULL, 0, 'CDF')
+         ON CONFLICT (agent_ref) DO NOTHING",
+    )
+    .bind(HOUSE_ACCOUNT_REF)
+    .execute(pool)
+    .await?;
 
     Ok(())
 }
