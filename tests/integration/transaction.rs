@@ -311,6 +311,50 @@ async fn withdrawal_no_commission_rate(pool: PgPool) {
 }
 
 #[sqlx::test]
+async fn withdrawal_missing_house_account_returns_internal_error(pool: PgPool) {
+    let config = test_config();
+    let token = register_and_login(&pool, &config).await;
+    let (nfc, agent_ref) = seed_withdrawal_data(&pool).await;
+
+    sqlx::query("DROP TRIGGER IF EXISTS trg_protect_house_account ON agent_accounts")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM agent_accounts WHERE agent_ref = $1")
+        .bind(HOUSE_ACCOUNT_REF)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let state = test_state(pool);
+    let mut app = create_app(state);
+
+    let resp = app
+        .call(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/transactions/withdrawal")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "client_code": nfc,
+                        "withdrawal_amount": 10.0,
+                        "client_password": "wd.pass",
+                        "agent_code": agent_ref,
+                        "currency_type": "CDF"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+#[sqlx::test]
 async fn withdrawal_null_card_password(pool: PgPool) {
     let config = test_config();
     let token = register_and_login(&pool, &config).await;
