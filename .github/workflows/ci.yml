@@ -267,11 +267,13 @@ jobs:
           cache-all-crates: true
           cache-on-failure: true
 
-      # Installs cargo-llvm-cov for coverage generation.
-      - name: Install cargo-llvm-cov
+      # Installs cargo-llvm-cov + nextest for coverage generation.
+      - name: Install cargo-llvm-cov & cargo-nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov
+          tool: |
+            cargo-llvm-cov
+            cargo-nextest
 
       # Generates LCOV coverage report.
       # Excludes main.rs files from coverage calculation.
