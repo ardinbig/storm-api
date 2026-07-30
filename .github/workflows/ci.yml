@@ -13,38 +13,71 @@ on:
   pull_request:
     branches: [main]
 
+# Global environment configuration.
 env:
   CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
   RUST_LOG: info
 
 jobs:
 
-  # Check code formatting and lints the codebase using rustfmt and clippy.
-  lint:
-    name: Code Linting & Formatting
+  # Checks Rust formatting rules using rustfmt.
+  fmt:
+    name: Rust Formatting
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup Rust Toolchain (clippy & rustfmt)
+      - name: Setup Rust Toolchain (rustfmt)
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy, rustfmt
+          components: rustfmt
 
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: api
+          cache-all-crates: true
+          cache-on-failure: true
 
       - name: Check Rust Formatting
         run: cargo fmt --all -- --check
 
-      - name: Run Clippy Linter
-        run: cargo clippy --all-targets --all-features -- -D warnings
 
-  # Run all unit tests after linting passes, ensuring core logic correctness without external dependencies.
-  unit-tests:
-    name: Run Unit Tests
+  # Performs static analysis using Clippy.
+  clippy:
+    name: Clippy
     runs-on: ubuntu-latest
-    needs: lint
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust Toolchain (clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Cargo Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: api
+          cache-all-crates: true
+          cache-on-failure: true
+
+      - name: Run Clippy Linter
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+
+  # Runs fast unit tests using cargo-nextest.
+  # Unit tests validate isolated application components without external services.
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
       - uses: actions/checkout@v7
 
@@ -53,39 +86,31 @@ jobs:
 
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: api
+          cache-all-crates: true
+          cache-on-failure: true
+
+      - name: Setup cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
 
       - name: Execute Unit Tests
-        run: cargo test --test unit
+        run: cargo nextest run --test unit
 
-  # Runs integration tests with PostgreSQL and Redis services, applies DB migrations,
-  # and ensures the app works end-to-end with real dependencies.
-  integration-tests:
-    name: Run Integration Tests
+
+  # Builds the application using release optimizations.
+  # Ensures the production binary can be generated successfully.
+  build:
+    name: Release Binary
     runs-on: ubuntu-latest
-    needs: unit-tests
-    services:
-      postgres:
-        image: postgres:18-bookworm
-        env:
-          POSTGRES_USER: storm
-          POSTGRES_PASSWORD: storm_secret
-          POSTGRES_DB: storm_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:8-bookworm
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    timeout-minutes: 20
+
+    # Build requires code quality.
+    needs:
+      - fmt
+      - clippy
 
     steps:
       - uses: actions/checkout@v7
@@ -95,36 +120,31 @@ jobs:
 
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
-
-      - name: Cache sqlx CLI Binary
-        id: cache-sqlx
-        uses: actions/cache@v6
         with:
-          path: ~/.cargo/bin/sqlx
-          key: sqlx-cli-${{ runner.os }}-0.3
+          shared-key: api
+          cache-all-crates: true
+          cache-on-failure: true
 
-      - name: Install sqlx CLI (if missing)
-        if: steps.cache-sqlx.outputs.cache-hit != 'true'
-        run: cargo install sqlx-cli --no-default-features --features rustls,postgres
+      - name: Build Project in Release Mode
+        run: cargo build --release --bin storm-api
 
-      - name: Apply Database Migrations
-        env:
-          DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
-        run: sqlx migrate run --source migrations
 
-      - name: Execute Integration Tests
-        env:
-          DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: change-me-to-a-random-64-char-string-in-production
-        run: cargo test --test integration -- --include-ignored
-
-  # Run code coverage analysis using cargo-llvm-cov and uploads the report to Codecov.
-  coverage:
-    name: Code Coverage & Report
+  # Runs end-to-end tests against real external dependencies.
+  # PostgreSQL and Redis services simulate the production environment.
+  integration-tests:
+    name: Integration Tests
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests]
+    timeout-minutes: 30
+
+    # Requires successful validations.
+    needs:
+      - fmt
+      - clippy
+      - unit-tests
+
     services:
+
+      # PostgreSQL database service.
       postgres:
         image: postgres:18-bookworm
         env:
@@ -134,10 +154,12 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U storm"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+      # Redis service.
       redis:
         image: redis:8-bookworm
         ports:
@@ -147,9 +169,92 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+    # Environment variables required by integration tests.
+    # Secrets should be stored in GitHub Secrets.
+    env:
+      DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: api
+          cache-all-crates: true
+          cache-on-failure: true
+
+      # Installs required Rust CLI tools.
+      # Uses prebuilt binaries when available to speed up CI.
+      - name: Setup Rust CLI tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: |
+            cargo-nextest
+            sqlx-cli
+
+      # Applies database schema migrations before running tests.
+      - name: Run Database Migrations
+        run: sqlx migrate run --source migrations
+
+      # Executes integration tests including ignored database/service tests.
+      - name: Run Integration Tests
+        run: cargo nextest run --test integration --run-ignored all
+
+
+  # Generates code coverage reports.
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    # Coverage is only generated after integration tests pass on main.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    needs:
+      - integration-tests
+
+    services:
+
+      postgres:
+        image: postgres:18-bookworm
+        env:
+          POSTGRES_USER: storm
+          POSTGRES_PASSWORD: storm_secret
+          POSTGRES_DB: storm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U storm"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:8-bookworm
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
     steps:
       - uses: actions/checkout@v7
 
+      # Installs LLVM tooling required for coverage instrumentation.
       - name: Setup Rust Toolchain (llvm-cov)
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -157,38 +262,34 @@ jobs:
 
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: api
+          cache-all-crates: true
+          cache-on-failure: true
 
+      # Installs cargo-llvm-cov for coverage generation.
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
 
+      # Generates LCOV coverage report.
+      # Excludes main.rs files from coverage calculation.
       - name: Run Tests & Generate Coverage Report
-        env:
-          DATABASE_URL: postgres://storm:storm_secret@localhost:5432/storm_test
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: change-me-to-a-random-64-char-string-in-production
-        run: cargo llvm-cov --all-features --workspace --fail-under-lines 80 --ignore-filename-regex "main\.rs" --lcov --output-path lcov.info
+        run: |
+          cargo llvm-cov nextest \
+            --workspace \
+            --all-features \
+            --fail-under-lines 80 \
+            --ignore-filename-regex "main\.rs" \
+            --lcov \
+            --output-path lcov.info
 
+      # Uploads coverage metrics to Codecov.
+      # Token is stored securely as a GitHub Actions secret.
       - name: Upload Coverage to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-
-  # Build the project in release mode to verify that a production build succeeds after all tests pass.
-  build:
-    name: Build Release Binary
-    runs-on: ubuntu-latest
-    needs: coverage
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo Dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build Project in Release Mode
-        run: cargo build --release --bin storm-api
+          files: lcov.info
