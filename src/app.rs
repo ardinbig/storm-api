@@ -78,7 +78,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 #[openapi(
     info(
         title = "Storm API",
-        version = "0.1.3",
+        version = "0.1.4",
         description = "Fuel station management REST API — NFC card balances, agent withdrawals with commission, fuel consumption logging, and MLM loyalty bonuses.",
     ),
     paths(
