@@ -7,9 +7,9 @@ edition = "2024"
 
 # Core
 axum = "0.8.9"
-tokio = { version = "1.52.3", features = ["full"] }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
+tokio = { version = "1.53.1", features = ["full"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 
 # Tower / HTTP layers
 tower = { version = "0.5.3", features = ["full"] }
@@ -36,26 +36,26 @@ argon2 = "0.5.3"
 chrono = { version = "0.4.45", features = ["serde"] }
 
 # Error handling
-thiserror = "2.0.18"
+thiserror = "2.0.19"
 
 # Logging
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 
 # Cache
-redis = { version = "1.3.0", features = ["tokio-comp", "connection-manager"] }
+redis = { version = "1.5.0", features = ["tokio-comp", "connection-manager"] }
 
 # OpenAPI documentation
 utoipa = { version = "5.5.0", features = ["axum_extras", "uuid", "chrono"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 
 # Utilities
-uuid = { version = "1.23.4", features = ["v4", "serde"] }
+uuid = { version = "1.24.0", features = ["v4", "serde"] }
 dotenvy = "0.15.7"
 
 [dev-dependencies]
 tower-service = "0.3.3"
-http-body-util = "0.1.3"
+http-body-util = "0.1.4"
 jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
 mockall = "0.15.0"
 reqwest = { version = "0.13.4", features = ["json"] }
