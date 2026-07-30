@@ -1,0 +1,7 @@
+name: "Exclude Rust Tests"
+
+paths-ignore:
+  - 'tests/**'
+  - '**/tests/**'
+  - '**/*_test.rs'
+  - '**/test_*.rs'
