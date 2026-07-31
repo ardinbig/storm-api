@@ -65,3 +65,10 @@ testcontainers-modules = { version = "0.15.0", features = [
     "redis",
 ] }
 serial_test = "4.0.1"
+
+[profile.release]
+opt-level = 3
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
