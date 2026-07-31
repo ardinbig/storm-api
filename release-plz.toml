@@ -1,0 +1,17 @@
+[workspace]
+git_only = true
+
+git_release_body = """
+{{ changelog }}
+
+{% if remote.contributors %}
+### Contributors
+{% for contributor in remote.contributors %}
+* @{{ contributor.username }}
+{% endfor %}
+{% endif %}
+"""
+
+[[package]]
+name = "storm-api"
+publish = false
