@@ -11,6 +11,7 @@ on:
   push:
     branches:
       - main
+      - develop
     paths-ignore:
       - "**.md"
   pull_request:
@@ -30,7 +31,7 @@ jobs:
 
   # Runs code quality checks using rustfmt and clippy.
   lint:
-    name: Code Quality (Formating & Clippy)
+    name: Code Quality
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -71,7 +72,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --mount type=tmpfs,destination=/var/lib/postgresql/data
+          --mount type=tmpfs,destination=/var/lib/postgresql
           --health-cmd "pg_isready -U storm"
           --health-interval 5s
           --health-timeout 3s
@@ -139,7 +140,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --mount type=tmpfs,destination=/var/lib/postgresql/data
+          --mount type=tmpfs,destination=/var/lib/postgresql
           --health-cmd "pg_isready -U storm"
           --health-interval 10s
           --health-timeout 5s
