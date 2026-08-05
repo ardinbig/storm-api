@@ -14,12 +14,14 @@
 //! 5. **CORS** — permissive cross-origin policy.
 //! 6. **Auth** (protected routes only) — validates the `Authorization: Bearer`
 //!    header and injects the authenticated user into request extensions.
+//! 7. **Idempotency** (protected mutating routes only) — coordinates
+//!    idempotency keys via Redis and replays successful cached responses.
 
 mod open_api;
 
 use axum::{
     Router,
-    http::{Method, StatusCode, header},
+    http::{HeaderName, Method, StatusCode, header},
     middleware,
     routing::{get, post},
 };
@@ -33,7 +35,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     handlers::{agent_handler, auth_handler, transaction_handler},
-    middleware::{auth, request_counter},
+    middleware::{auth, idempotency, request_counter},
     routes,
     state::app_state::AppState,
 };
@@ -66,6 +68,9 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// | `/api/v1/prices` | **Yes** | [`routes::prices`] |
 /// | `/api/v1/docs` | No | Swagger UI (OpenAPI docs) |
 /// | `/api-doc/openapi.json` | No | OpenAPI JSON spec |
+///
+/// Protected routes are wrapped with JWT authentication and idempotency
+/// middleware before handler execution.
 ///
 /// Any unmatched path returns **404**.
 pub fn create_app(state: AppState) -> Router {
@@ -102,7 +107,7 @@ fn public_routes() -> Router<AppState> {
         )
 }
 
-/// Returns all JWT-protected routes.
+/// Returns all JWT-protected routes with auth and idempotency middleware.
 fn protected_routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .route("/api/v1/auth/logout", post(auth_handler::logout))
@@ -121,19 +126,30 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
             "/api/v1/commission-tiers",
             routes::commission_tiers::routes(),
         )
-        .route_layer(ServiceBuilder::new().layer(middleware::from_fn_with_state(
-            state.clone(),
-            auth::auth_middleware,
-        )))
+        .route_layer(
+            ServiceBuilder::new()
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    auth::auth_middleware,
+                ))
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    idempotency::idempotency_middleware,
+                )),
+        )
 }
 
 /// Builds a permissive CORS layer that allows any origin, common HTTP methods,
-/// and the `Content-Type`, and `Authorization` headers.
+/// and the `Content-Type`, `Authorization`, and `X-Idempotency-Key` headers.
 fn cors_layer() -> CorsLayer {
     CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            HeaderName::from_static(idempotency::IDEMPOTENCY_HEADER_NAME),
+        ])
 }
 
 /// Fallback handler for unmatched routes.

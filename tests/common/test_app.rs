@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-use crate::common::{register_and_login, test_config};
+use crate::common::{host_port_ipv4_with_retry, register_and_login, test_config};
 
 /// A self-contained test server backed by disposable PostgreSQL and Redis
 /// containers.
@@ -36,11 +36,7 @@ impl TestApp {
             .await
             .expect("Failed to start PostgreSQL container");
 
-        let pg_port = pg_container
-            .get_host_port_ipv4(5432)
-            .await
-            .expect("Failed to get Postgres container port");
-
+        let pg_port = host_port_ipv4_with_retry(&pg_container, 5432).await;
         let db_url = format!("postgres://postgres:postgres@127.0.0.1:{pg_port}/postgres");
 
         let pool = sqlx::postgres::PgPoolOptions::new()
@@ -60,11 +56,7 @@ impl TestApp {
             .await
             .expect("Failed to start Redis container");
 
-        let redis_port = redis_container
-            .get_host_port_ipv4(6379)
-            .await
-            .expect("Failed to get Redis container port");
-
+        let redis_port = host_port_ipv4_with_retry(&redis_container, 6379).await;
         let redis_url = format!("redis://127.0.0.1:{redis_port}");
         let redis_client = redis::Client::open(redis_url).expect("Failed to create Redis client");
         let redis_conn = redis::aio::ConnectionManager::new(redis_client)
