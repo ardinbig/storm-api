@@ -1,0 +1,16 @@
+name: Detect Tag
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: read
+
+jobs:
+  detect_tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect Tag
+        run: echo "Tag is ${{ github.ref }}"

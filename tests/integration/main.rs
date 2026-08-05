@@ -14,6 +14,7 @@ mod consumption;
 mod customer;
 mod db_connection;
 mod health;
+mod idempotency;
 mod price;
 mod state;
 mod transaction;

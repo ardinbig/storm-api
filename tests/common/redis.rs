@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use storm_api::state::app_state::{AppState, RedisPool};
 use testcontainers::ImageExt;
 
-use crate::common::test_config;
+use crate::common::{host_port_ipv4_with_retry, test_config};
 
 /// Spin up a disposable Redis container and return a live `RedisPool` plus the
 /// container guard (must be kept alive for the pool to remain connected).
@@ -23,10 +23,7 @@ pub async fn setup_redis_pool() -> (
         .start()
         .await
         .expect("Failed to start Redis container");
-    let port = container
-        .get_host_port_ipv4(6379)
-        .await
-        .expect("Failed to get Redis port");
+    let port = host_port_ipv4_with_retry(&container, 6379).await;
     let url = format!("redis://127.0.0.1:{port}");
     let client = redis::Client::open(url).expect("Failed to create Redis client");
     let conn = redis::aio::ConnectionManager::new(client)

@@ -2,6 +2,7 @@
 name = "storm-api"
 version = "0.1.4"
 edition = "2024"
+publish = false
 
 [dependencies]
 
@@ -56,7 +57,6 @@ dotenvy = "0.15.7"
 [dev-dependencies]
 tower-service = "0.3.3"
 http-body-util = "0.1.4"
-jsonwebtoken = { version = "11.0.0", features = ["rust_crypto"] }
 mockall = "0.15.0"
 reqwest = { version = "0.13.4", features = ["json"] }
 testcontainers = "0.27.3"
@@ -65,3 +65,10 @@ testcontainers-modules = { version = "0.15.0", features = [
     "redis",
 ] }
 serial_test = "4.0.1"
+
+[profile.release]
+opt-level = 3
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"

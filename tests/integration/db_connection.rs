@@ -1,8 +1,11 @@
 use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
 
+use crate::common::host_port_ipv4_with_retry;
+
 /// Spin up a disposable container, connect via `create_pool`, and run a query.
 #[tokio::test]
+#[serial_test::serial]
 async fn create_pool_success() {
     let container = Postgres::default()
         .with_tag("18-bookworm")
@@ -10,10 +13,7 @@ async fn create_pool_success() {
         .await
         .expect("Failed to start container");
 
-    let port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("Failed to get port");
+    let port = host_port_ipv4_with_retry(&container, 5432).await;
 
     let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
     let pool = storm_api::db::connection::create_pool(&url).await;
@@ -34,10 +34,7 @@ async fn create_pool_with_max_connections_env() {
         .await
         .expect("Failed to start container");
 
-    let port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("Failed to get port");
+    let port = host_port_ipv4_with_retry(&container, 5432).await;
 
     let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
 
@@ -52,6 +49,7 @@ async fn create_pool_with_max_connections_env() {
 
 /// Bad URL should panic.
 #[tokio::test]
+#[serial_test::serial]
 #[should_panic(expected = "Failed to connect to database")]
 async fn create_pool_with_bad_url() {
     storm_api::db::connection::create_pool("postgres://invalid:invalid@localhost:1/none").await;

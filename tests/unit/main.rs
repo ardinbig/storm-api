@@ -6,5 +6,6 @@ mod common;
 mod auth_service;
 mod cache;
 mod error;
+mod idempotency;
 mod model;
 mod password;
