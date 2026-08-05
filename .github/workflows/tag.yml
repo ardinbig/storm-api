@@ -5,6 +5,9 @@ on:
     tags:
       - "*"
 
+permissions:
+  contents: read
+
 jobs:
   detect_tag:
     runs-on: ubuntu-latest
