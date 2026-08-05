@@ -32,7 +32,7 @@ jobs:
         uses: release-plz/action@main
         with:
           command: release
-          project_manifest: subdir/Cargo.toml
+          project_manifest: Cargo.toml
           verbose: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

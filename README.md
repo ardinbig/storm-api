@@ -4,7 +4,7 @@
 
 [![API workflow](https://github.com/ardinbig/storm-api/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ardinbig/storm-api/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/ardinbig/storm-api/graph/badge.svg?token=WcHmafLVMx)](https://codecov.io/github/ardinbig/storm-api)
-[![Rust](https://img.shields.io/badge/Rust-1.96.1%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/Rust-1.97.1%2B-orange.svg)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 `storm-api` is a modular Rust REST API built on [Axum](https://docs.rs/axum), [SQLx](https://docs.rs/sqlx), PostgreSQL, and Redis. It is designed for operational reliability: structured logs, explicit health checks, graceful shutdown, OpenAPI-driven documentation, and a test layout that spans unit, integration, and end-to-end scenarios.
@@ -16,6 +16,7 @@
 ### Auth & Security
 - Dual JWT auth flows with Argon2id password hashing.
 - JWT revocation via Redis blocklist.
+- Idempotency-key support for authenticated mutating endpoints via `X-Idempotency-Key`.
 
 ### Cards & Customers
 - NFC card registry with PIN-protected balance checks.
@@ -32,7 +33,7 @@
 - 2-level MLM bonus via PostgreSQL trigger on consumption.
 
 ### Observability & Operations
-- Request counter, tracing, gzip, 30s timeout, CORS, JWT auth.
+- Request counter, tracing, gzip, 30s timeout, CORS, JWT auth, idempotency replay.
 - Health probes: `/health` (liveness), `/ready` (readiness), `/metrics` (counter).
 - Graceful shutdown on `SIGTERM` with 5s drain window.
 - Structured JSON logging via `tracing`.
@@ -82,6 +83,7 @@ storm-api/
 │   ├── routes/         # HTTP topology per domain
 │   ├── handlers/       # Request extraction → service call → response
 │   ├── services/       # Business logic + SQLx queries
+│   ├── middleware/     # Auth, request counter, idempotency
 │   ├── models/         # DTOs and database row types
 │   ├── state/          # AppState (pool, Redis, JWT config, counters)
 │   ├── errors/         # Unified AppError → JSON response
@@ -113,8 +115,10 @@ storm-api/
   3. Compression      — gzip                       
   4. Timeout          — 408 after 30s        
   5. CORS             — cross-origin policy   
-  6. Auth             — JWT → CurrentUser     
-                       (protected routes)     
+  6. Auth             — JWT → CurrentUser
+                       (protected routes)
+  7. Idempotency      — Redis-backed replay/cache
+                       (protected mutating routes)
 └────────────────────────────────────────────┘
                         │
                         ▼
@@ -131,8 +135,9 @@ storm-api/
            │                       │
            ▼                       ▼
 ┌─────────────────┐     ┌────────────────────┐
-     PostgreSQL                    Redis         
-   (SQLx + PgPool)           JWT blocklist/cache 
+     PostgreSQL                    Redis
+   (SQLx + PgPool)             JWT blocklist + 
+                                idempotency  
 └─────────────────┘     └────────────────────┘
 ```
 ---
@@ -146,6 +151,22 @@ storm-api/
 | `APP_ADDR`           | Bind address.                                            | `127.0.0.1:3000`                                 |
 | `RUST_LOG`           | Log filter.                                              | `storm_api=debug,tower_http=debug`               |
 | `MAX_DB_CONNECTIONS` | SQLx pool size.                                          | `10`                                             |
+
+---
+
+## Idempotency
+
+Authenticated mutating routes (`POST`, `PUT`, `PATCH`, `DELETE` under the protected router, including `POST /api/v1/auth/logout`) accept an optional `X-Idempotency-Key` header.
+
+- Missing header: request proceeds normally.
+- Malformed header, repeated header, or comma-joined value: `400 Bad Request`.
+- Duplicate in-flight request for the same authenticated user + key: `409 Conflict`, body `{ "error": "processing", "code": 409 }`, header `Retry-After: 1`.
+- Successful cacheable `2xx` response: replay-cached in Redis for 24 hours.
+- `4xx`/`5xx` downstream response: not cached; the lock is released immediately.
+- Streamed responses or oversized bodies: not cached.
+- Redis unavailable while an idempotency key is supplied: `503 Service Unavailable`.
+
+Idempotency scope is per authenticated user and key, not global across all callers.
 
 ---
 
@@ -179,7 +200,7 @@ Graceful shutdown listens for `SIGTERM` / `Ctrl+C`, flips the readiness flag to 
 
 | Layer                 | Technology (crates)                                  |
 |-----------------------|------------------------------------------------------|
-| Language              | Rust 1.96+                                           |
+| Language              | Rust 1.97+                                           |
 | Web framework         | Axum 0.8 + Tower + tower-http                        |
 | Async runtime         | Tokio                                                |
 | Database              | PostgreSQL via SQLx                                  |
