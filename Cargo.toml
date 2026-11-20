@@ -48,7 +48,7 @@ redis = { version = "1.5.0", features = ["tokio-comp", "connection-manager"] }
 
 # OpenAPI documentation
 utoipa = { version = "5.5.0", features = ["axum_extras", "uuid", "chrono"] }
-utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+utoipa-swagger-ui = { version = "10.0.2", features = ["axum"] }
 
 # Utilities
 uuid = { version = "1.24.0", features = ["v4", "serde"] }
