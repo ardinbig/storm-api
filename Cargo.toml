@@ -47,7 +47,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 redis = { version = "1.5.0", features = ["tokio-comp", "connection-manager"] }
 
 # OpenAPI documentation
-utoipa = { version = "5.5.0", features = ["axum_extras", "uuid", "chrono"] }
+utoipa = { version = "6.0.0", features = ["axum_extras", "uuid", "chrono"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 
 # Utilities
