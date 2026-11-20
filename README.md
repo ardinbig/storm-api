@@ -1,3 +1,5 @@
+
+
 # Storm API
 
 > Production-grade Axum + SQLx backend for fuel-station operations, wallet-style card balances, commission workflows, and loyalty-aware transaction processing.
@@ -148,6 +150,7 @@ storm-api/
 | `DATABASE_URL`       | PostgreSQL connection string.                            | `postgres://postgres:postgres@localhost/stormdb` |
 | `REDIS_URL`          | Redis URL. Optional - app degrades gracefully if absent. | `redis://127.0.0.1:6379`                         |
 | `JWT_SECRET`         | HMAC secret. **Change in production.**                   | `dev-secret-change-in-production`                |
+| `JWT_EXPIRY_HOURS`   | Token validity period in hours.                          | `24`                                             |
 | `APP_ADDR`           | Bind address.                                            | `127.0.0.1:3000`                                 |
 | `RUST_LOG`           | Log filter.                                              | `storm_api=debug,tower_http=debug`               |
 | `MAX_DB_CONNECTIONS` | SQLx pool size.                                          | `10`                                             |
