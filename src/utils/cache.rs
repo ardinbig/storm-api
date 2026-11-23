@@ -4,7 +4,7 @@
 //! When `None`, all operations are no-ops, providing transparent graceful
 //! degradation when Redis is unavailable (e.g. in tests).
 
-use redis::AsyncCommands;
+use redis::{AsyncCommands, aio::ConnectionManager};
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::warn;
 
@@ -18,19 +18,18 @@ use crate::state::app_state::RedisPool;
 /// Returns `None` if Redis is unavailable, the key does not exist, or
 /// deserialization fails.
 pub async fn get<T: DeserializeOwned>(redis: &RedisPool, key: &str) -> Option<T> {
-    let conn = redis.as_ref()?;
-    let mut conn = conn.clone();
-    let json: String = match conn.get(key).await {
-        Ok(v) => v,
-        Err(e) => {
-            warn!("cache GET {key}: {e}");
-            return None;
-        }
-    };
-    match serde_json::from_str(&json) {
-        Ok(v) => Some(v),
-        Err(e) => {
-            warn!("cache deserialize {key}: {e}");
+    let json = read_json(redis, key).await?;
+    serde_json::from_str(&json)
+        .inspect_err(|error| log_json_error("deserialize", error))
+        .ok()
+}
+
+async fn read_json(redis: &RedisPool, key: &str) -> Option<String> {
+    let mut conn = redis.as_ref()?.clone();
+    match conn.get(key).await {
+        Ok(value) => value,
+        Err(error) => {
+            log_redis_error("get", &error);
             None
         }
     }
@@ -38,17 +37,18 @@ pub async fn get<T: DeserializeOwned>(redis: &RedisPool, key: &str) -> Option<T>
 
 /// Stores a JSON-serialized value with a TTL. No-ops when Redis is unavailable.
 pub async fn set<T: Serialize>(redis: &RedisPool, key: &str, value: &T, ttl_secs: u64) {
-    let Some(conn) = redis.as_ref() else { return };
-    let mut conn = conn.clone();
-    let json = match serde_json::to_string(value) {
-        Ok(j) => j,
-        Err(e) => {
-            warn!("cache serialize {key}: {e}");
-            return;
-        }
+    if let Some(conn) = redis.as_ref() {
+        store(conn, key, serde_json::to_string(value), ttl_secs).await;
+    }
+}
+
+async fn store(conn: &ConnectionManager, key: &str, encoded: serde_json::Result<String>, ttl: u64) {
+    let Ok(json) = encoded.inspect_err(|error| log_json_error("serialize", error)) else {
+        return;
     };
-    if let Err(e) = conn.set_ex::<_, _, ()>(key, json, ttl_secs).await {
-        warn!("cache SET {key}: {e}");
+    let mut conn = conn.clone();
+    if let Err(error) = conn.set_ex::<_, _, ()>(key, json, ttl).await {
+        log_redis_error("set", &error);
     }
 }
 
@@ -56,8 +56,8 @@ pub async fn set<T: Serialize>(redis: &RedisPool, key: &str, value: &T, ttl_secs
 pub async fn del(redis: &RedisPool, key: &str) {
     let Some(conn) = redis.as_ref() else { return };
     let mut conn = conn.clone();
-    if let Err(e) = conn.del::<_, ()>(key).await {
-        warn!("cache DEL {key}: {e}");
+    if let Err(error) = conn.del::<_, ()>(key).await {
+        log_redis_error("del", &error);
     }
 }
 
@@ -72,8 +72,8 @@ pub async fn blocklist_token(redis: &RedisPool, token: &str, ttl_secs: u64) {
     let Some(conn) = redis.as_ref() else { return };
     let mut conn = conn.clone();
     let key = ["blocklist:", token].concat();
-    if let Err(e) = conn.set_ex::<_, _, ()>(&key, "1", ttl_secs).await {
-        warn!("cache blocklist SET: {e}");
+    if let Err(error) = conn.set_ex::<_, _, ()>(&key, "1", ttl_secs).await {
+        log_redis_error("blocklist_set", &error);
     }
 }
 
@@ -85,10 +85,21 @@ pub async fn is_blocklisted(redis: &RedisPool, token: &str) -> bool {
     };
     let mut conn = conn.clone();
     let key = ["blocklist:", token].concat();
-    conn.exists::<_, bool>(&key).await.unwrap_or_else(|e| {
-        warn!("cache blocklist check: {e}");
+    conn.exists::<_, bool>(&key).await.unwrap_or_else(|error| {
+        log_redis_error("blocklist_check", &error);
         false
     })
+}
+
+// Keys can contain NFC references or tokens; log the operation and error class only.
+fn log_redis_error(operation: &'static str, error: &redis::RedisError) {
+    let kind = tracing::field::debug(error.kind());
+    warn!(operation, kind, "Redis cache operation failed");
+}
+
+fn log_json_error(operation: &'static str, error: &serde_json::Error) {
+    let category = tracing::field::debug(error.classify());
+    warn!(operation, category, "Redis cache JSON conversion failed");
 }
 
 // Cache-key helpers
@@ -102,15 +113,4 @@ pub fn card_detail_key(nfc_ref: &str) -> String {
 /// Cache key for the current fuel price by consumption type.
 pub fn price_key(consumption_type: &str) -> String {
     ["price:", consumption_type].concat()
-}
-
-/// Test-only helper that calls [`set`] with a value guaranteed to fail
-/// serialization, exercising the `serde_json::to_string` error branch inside
-/// the library crate (avoids cross-crate monomorphization blind spots in
-/// coverage tools).
-#[doc(hidden)]
-pub async fn _test_set_bad_serialize(redis: &RedisPool, key: &str) {
-    // JSON object keys must be strings; tuple keys trigger serialization errors.
-    let bad = std::collections::HashMap::from([((1_i32, 2_i32), 1_i32)]);
-    set(redis, key, &bad, 60).await;
 }
