@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use axum::{
     Json,
-    body::{Body, to_bytes},
+    body::{Body, HttpBody, to_bytes},
     extract::{MatchedPath, Request, State},
     http::{HeaderName, HeaderValue, Method, StatusCode, header},
     middleware::Next,
@@ -261,18 +261,16 @@ fn cacheable_success_response(response: &Response) -> bool {
         return false;
     }
 
-    let Some(content_length) = response.headers().get(header::CONTENT_LENGTH) else {
-        return false;
+    let length = match response.headers().get(header::CONTENT_LENGTH) {
+        Some(value) => value
+            .to_str()
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok()),
+        // The HTTP server can add Content-Length after middleware runs.
+        // An exact body length also distinguishes buffered responses from streams.
+        None => response.body().size_hint().exact(),
     };
-
-    let Ok(length) = content_length.to_str() else {
-        return false;
-    };
-    let Ok(length) = length.parse::<usize>() else {
-        return false;
-    };
-
-    length <= IDEMPOTENCY_BODY_CAP_BYTES
+    length.is_some_and(|length| length <= IDEMPOTENCY_BODY_CAP_BYTES as u64)
 }
 
 fn cached_response_to_http(cached: CachedResponse) -> Response {
@@ -628,16 +626,13 @@ mod tests {
     }
 
     #[test]
-    fn cacheable_success_response_requires_content_length_and_no_transfer_encoding() {
+    fn cacheable_success_response_rejects_invalid_lengths_and_transfer_encoding() {
         let mut streamed = Response::new(Body::from("ok"));
         streamed.headers_mut().insert(
             header::TRANSFER_ENCODING,
             HeaderValue::from_static("chunked"),
         );
         assert!(!cacheable_success_response(&streamed));
-
-        let no_len = Response::new(Body::from("ok"));
-        assert!(!cacheable_success_response(&no_len));
 
         let mut invalid_len = Response::new(Body::from("ok"));
         invalid_len
@@ -663,6 +658,22 @@ mod tests {
         ok.headers_mut()
             .insert(header::CONTENT_LENGTH, HeaderValue::from_static("2"));
         assert!(cacheable_success_response(&ok));
+    }
+
+    #[test]
+    fn cacheable_success_response_uses_exact_body_length_without_header() {
+        let json = Json(serde_json::json!({ "ok": true })).into_response();
+        assert!(!json.headers().contains_key(header::CONTENT_LENGTH));
+        assert!(cacheable_success_response(&json));
+
+        let at_cap = Response::new(Body::from(vec![0; IDEMPOTENCY_BODY_CAP_BYTES]));
+        assert!(cacheable_success_response(&at_cap));
+
+        let over_cap = Response::new(Body::from(vec![0; IDEMPOTENCY_BODY_CAP_BYTES + 1]));
+        assert!(!cacheable_success_response(&over_cap));
+
+        let stream = Response::new(Body::from_stream(Body::from("ok").into_data_stream()));
+        assert!(!cacheable_success_response(&stream));
     }
 
     #[tokio::test]
