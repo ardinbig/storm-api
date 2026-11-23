@@ -30,11 +30,15 @@ async fn wait_until_redis_unreachable(redis: &storm_api::state::app_state::Redis
 // ===============
 
 #[tokio::test]
-async fn cache_set_then_get_returns_stored_value() {
+async fn cache_set_round_trips_with_redis_and_no_ops_without_it() {
     init_warn_tracing();
     let (redis, _c) = setup_redis_pool().await;
 
     let value = serde_json::json!({"name": "test", "amount": 42.5});
+    cache::set(&None, "test:uncached", &value, 60).await;
+    let uncached: Option<serde_json::Value> = cache::get(&redis, "test:uncached").await;
+    assert!(uncached.is_none());
+
     cache::set(&redis, "test:set-get", &value, 60).await;
 
     let result: Option<serde_json::Value> = cache::get(&redis, "test:set-get").await;
@@ -70,7 +74,9 @@ async fn cache_set_unserializable_value_no_ops() {
     init_warn_tracing();
     let (redis, _c) = setup_redis_pool().await;
 
-    cache::_test_set_bad_serialize(&redis, "test:bad").await;
+    // JSON object keys must be strings; tuple keys cannot be serialized.
+    let bad = std::collections::HashMap::from([((1_i32, 2_i32), 1_i32)]);
+    cache::set(&redis, "test:bad", &bad, 60).await;
 
     let result: Option<serde_json::Value> = cache::get(&redis, "test:bad").await;
     assert!(result.is_none());
