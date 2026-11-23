@@ -650,6 +650,59 @@ async fn redis_get_error_returns_service_unavailable(pool: PgPool) {
 }
 
 #[sqlx::test]
+async fn response_survives_a_cache_write_error_after_the_handler(pool: PgPool) {
+    let (redis, _container) = setup_redis_pool().await;
+    let mut inspect = redis.as_ref().unwrap().clone();
+    let redis_for_handler = inspect.clone();
+    let state = test_state_with_redis(pool, redis);
+    let mut app = Router::new()
+        .route(
+            "/demo",
+            post(move || {
+                let mut redis = redis_for_handler.clone();
+                async move {
+                    // Fail the cache write only after the lock was acquired.
+                    redis::cmd("REPLICAOF")
+                        .arg("127.0.0.1")
+                        .arg("1")
+                        .query_async::<redis::Value>(&mut redis)
+                        .await
+                        .unwrap();
+                    axum::Json(serde_json::json!({"receipt": 1}))
+                }
+            }),
+        )
+        .route_layer(
+            tower::ServiceBuilder::new()
+                .layer(middleware::from_fn(inject_current_user))
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    idempotency::idempotency_middleware,
+                )),
+        )
+        .with_state(state);
+
+    let response = app
+        .call(
+            Request::builder()
+                .method("POST")
+                .uri("/demo")
+                .header(idempotency::IDEMPOTENCY_HEADER_NAME, "write-error")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_to_value(response.into_body()).await["receipt"], 1);
+    let stored: bool = inspect
+        .exists("idempotency:user:user-1:key:write-error:response")
+        .await
+        .unwrap();
+    assert!(!stored);
+}
+
+#[sqlx::test]
 async fn redis_set_error_returns_service_unavailable(pool: PgPool) {
     let (redis, _container) = setup_redis_pool().await;
     let mut conn = redis.as_ref().unwrap().clone();

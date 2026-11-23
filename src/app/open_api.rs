@@ -162,3 +162,19 @@ impl utoipa::Modify for SecurityAddon {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use utoipa::Modify;
+
+    #[test]
+    fn security_addon_preserves_documents_without_components() {
+        let mut document = ApiDoc::openapi();
+        document.components = None;
+
+        SecurityAddon.modify(&mut document);
+
+        assert!(document.components.is_none());
+    }
+}

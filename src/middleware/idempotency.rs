@@ -149,64 +149,16 @@ pub fn path_label(method: &str, matched_path: Option<&str>) -> String {
 ///
 /// The `user_id` field is omitted entirely when unavailable.
 pub fn emit_idempotency_telemetry(telemetry: &IdempotencyTelemetry<'_>) {
-    match telemetry.event {
-        IdempotencyEvent::MalformedHeader => {
-            if let Some(user_id) = telemetry.user_id.as_ref() {
-                emit_warn_with_user(telemetry, user_id);
-            } else {
-                emit_warn_without_user(telemetry);
-            }
-        }
-        _ => {
-            if let Some(user_id) = telemetry.user_id.as_ref() {
-                emit_debug_with_user(telemetry, user_id);
-            } else {
-                emit_debug_without_user(telemetry);
-            }
-        }
+    let event = telemetry.event.as_str();
+    let reason = telemetry.reason.as_ref();
+    let path = telemetry.path.as_ref();
+    // Tracing's Value implementation for Option omits None from the event.
+    let user_id = telemetry.user_id.as_deref();
+    if telemetry.event == IdempotencyEvent::MalformedHeader {
+        tracing::warn!(event, reason, path, user_id, "idempotency telemetry");
+    } else {
+        tracing::debug!(event, reason, path, user_id, "idempotency telemetry");
     }
-}
-
-fn emit_warn_with_user(telemetry: &IdempotencyTelemetry<'_>, user_id: &str) {
-    let event = telemetry.event.as_str();
-    tracing::warn!(
-        event = event,
-        reason = %telemetry.reason,
-        path = %telemetry.path,
-        user_id = %user_id,
-        "idempotency telemetry"
-    );
-}
-
-fn emit_warn_without_user(telemetry: &IdempotencyTelemetry<'_>) {
-    let event = telemetry.event.as_str();
-    tracing::warn!(
-        event = event,
-        reason = %telemetry.reason,
-        path = %telemetry.path,
-        "idempotency telemetry"
-    );
-}
-
-fn emit_debug_with_user(telemetry: &IdempotencyTelemetry<'_>, user_id: &str) {
-    let event = telemetry.event.as_str();
-    tracing::debug!(
-        event = event,
-        reason = %telemetry.reason,
-        path = %telemetry.path,
-        user_id = %user_id,
-        "idempotency telemetry"
-    );
-}
-
-fn emit_debug_without_user(telemetry: &IdempotencyTelemetry<'_>) {
-    let event = telemetry.event.as_str();
-    tracing::debug!(
-        event = event,
-        reason = %telemetry.reason,
-        path = %telemetry.path,
-        "idempotency telemetry"
-    );
 }
 
 fn idempotency_header_name() -> HeaderName {
