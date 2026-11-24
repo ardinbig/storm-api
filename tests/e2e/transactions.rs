@@ -2,6 +2,7 @@ use crate::common::{self, TestApp};
 use serde_json::json;
 use serial_test::serial;
 use storm_api::middleware::idempotency::IDEMPOTENCY_HEADER_NAME;
+use uuid::Uuid;
 
 #[tokio::test]
 #[serial]
@@ -57,15 +58,18 @@ async fn e2e_withdrawal_flow() {
 async fn e2e_withdrawal_replays_success_without_second_debit() {
     let app = TestApp::spawn().await;
     let token = app.token().await;
+    let client_password = format!("fixture-pin-{}", Uuid::new_v4());
+    let agent_password = format!("fixture-password-{}", Uuid::new_v4());
+
     common::seed_withdrawal_scenario(
         &app.pool,
         &common::WithdrawalScenario {
             nfc: "NFC-WD-REPLAY",
             client_code: "CC-WD-REPLAY",
-            client_password: "fixture-pin",
+            client_password: &client_password,
             client_balance: 10_000.0,
             agent_ref: "AGENT-WD-REPLAY",
-            agent_password: "fixture-password",
+            agent_password: &agent_password,
             agent_balance: 500.0,
             commission_pct: 5.0,
         },
@@ -76,7 +80,7 @@ async fn e2e_withdrawal_replays_success_without_second_debit() {
     let payload = json!({
         "client_code": "NFC-WD-REPLAY",
         "withdrawal_amount": 200.0,
-        "client_password": "fixture-pin",
+        "client_password": client_password,
         "agent_code": "AGENT-WD-REPLAY",
         "currency_type": "CDF"
     });

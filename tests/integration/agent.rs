@@ -66,7 +66,16 @@ async fn public_post(app: &mut Router, uri: &str, b: Value) -> (StatusCode, Valu
 async fn agent_login_fails_closed_when_token_expiry_is_out_of_range(pool: PgPool) {
     use storm_api::{errors::AppError, models::agent::AgentLoginRequest, services::agent_service};
 
-    seed_agent(&pool, "AGENT-EXPIRY", "Test Agent", "fixture-password", 0.0).await;
+    let fixture_password = Uuid::new_v4().to_string();
+    seed_agent(
+        &pool,
+        "AGENT-EXPIRY",
+        "Test Agent",
+        fixture_password.as_str(),
+        0.0,
+    )
+    .await;
+
     let mut config = crate::common::test_config();
     config.jwt_expiry_hours = i64::MAX;
     let result = agent_service::authenticate(
@@ -74,7 +83,7 @@ async fn agent_login_fails_closed_when_token_expiry_is_out_of_range(pool: PgPool
         &config,
         &AgentLoginRequest {
             username: "AGENT-EXPIRY".into(),
-            password: "fixture-password".into(),
+            password: fixture_password,
         },
     )
     .await;

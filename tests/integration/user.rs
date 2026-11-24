@@ -1,9 +1,12 @@
 use sqlx::PgPool;
 use storm_api::services::user_service;
+use uuid::Uuid;
 
 #[sqlx::test]
 async fn user_login_fails_closed_when_token_expiry_is_out_of_range(pool: PgPool) {
     use storm_api::{errors::AppError, models::user::RegisterRequest};
+
+    let fixture_password = format!("fixture-{}", Uuid::new_v4());
 
     user_service::register(
         &pool,
@@ -11,7 +14,7 @@ async fn user_login_fails_closed_when_token_expiry_is_out_of_range(pool: PgPool)
             name: "Fixture User".into(),
             email: None,
             username: "fixture-expiry".into(),
-            password: "fixture-password".into(),
+            password: fixture_password.clone(),
         },
     )
     .await
@@ -20,14 +23,15 @@ async fn user_login_fails_closed_when_token_expiry_is_out_of_range(pool: PgPool)
     config.jwt_expiry_hours = i64::MAX;
 
     let result =
-        user_service::authenticate(&pool, &config, "fixture-expiry", "fixture-password").await;
+        user_service::authenticate(&pool, &config, "fixture-expiry", &fixture_password).await;
 
     assert!(matches!(result, Err(AppError::Internal)));
 }
 
 fn set_default_admin_password() {
+    let admin_password = format!("TestAdminPass-{}", Uuid::new_v4());
     unsafe {
-        std::env::set_var("SUPER_ADMIN_PASSWORD", "TestAdminPass1!");
+        std::env::set_var("SUPER_ADMIN_PASSWORD", admin_password);
     }
 }
 
