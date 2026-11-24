@@ -47,14 +47,17 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 ///
 /// # Errors
 ///
-/// Returns a [`jsonwebtoken::errors::Error`] if signing fails.
+/// Returns a [`jsonwebtoken::errors::Error`] if the configured expiration is
+/// out of range or signing fails.
 pub fn create_token(
     config: &AuthConfig,
     user_id: &str,
     role: &str,
 ) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now();
-    let expiry = now + chrono::Duration::hours(config.jwt_expiry_hours);
+    let expiry = chrono::TimeDelta::try_hours(config.jwt_expiry_hours)
+        .and_then(|lifetime| now.checked_add_signed(lifetime))
+        .ok_or(jsonwebtoken::errors::ErrorKind::InvalidToken)?;
     let claims = Claims {
         sub: user_id.to_string(),
         iat: now.timestamp(),

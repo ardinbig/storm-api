@@ -63,6 +63,35 @@ async fn public_post(app: &mut Router, uri: &str, b: Value) -> (StatusCode, Valu
 // ===========
 
 #[sqlx::test]
+async fn agent_login_fails_closed_when_token_expiry_is_out_of_range(pool: PgPool) {
+    use storm_api::{errors::AppError, models::agent::AgentLoginRequest, services::agent_service};
+
+    let fixture_password = Uuid::new_v4().to_string();
+    seed_agent(
+        &pool,
+        "AGENT-EXPIRY",
+        "Test Agent",
+        fixture_password.as_str(),
+        0.0,
+    )
+    .await;
+
+    let mut config = crate::common::test_config();
+    config.jwt_expiry_hours = i64::MAX;
+    let result = agent_service::authenticate(
+        &pool,
+        &config,
+        &AgentLoginRequest {
+            username: "AGENT-EXPIRY".into(),
+            password: fixture_password,
+        },
+    )
+    .await;
+
+    assert!(matches!(result, Err(AppError::Internal)));
+}
+
+#[sqlx::test]
 async fn agent_login_success(pool: PgPool) {
     seed_agent(&pool, "AGENT-001", "Test Agent", "agent.pass", 1000.0).await;
     let mut app = create_test_app(pool);

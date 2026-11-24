@@ -1,6 +1,8 @@
 use crate::common::{self, TestApp};
 use serde_json::json;
 use serial_test::serial;
+use storm_api::middleware::idempotency::IDEMPOTENCY_HEADER_NAME;
+use uuid::Uuid;
 
 #[tokio::test]
 #[serial]
@@ -49,6 +51,63 @@ async fn e2e_withdrawal_flow() {
     assert_eq!(data.len(), 1);
     assert_eq!(transactions["total_items"], 1);
     assert_eq!(transactions["page"], 1);
+}
+
+#[tokio::test]
+#[serial]
+async fn e2e_withdrawal_replays_success_without_second_debit() {
+    let app = TestApp::spawn().await;
+    let token = app.token().await;
+    let client_password = format!("fixture-pin-{}", Uuid::new_v4());
+    let agent_password = format!("fixture-password-{}", Uuid::new_v4());
+
+    common::seed_withdrawal_scenario(
+        &app.pool,
+        &common::WithdrawalScenario {
+            nfc: "NFC-WD-REPLAY",
+            client_code: "CC-WD-REPLAY",
+            client_password: &client_password,
+            client_balance: 10_000.0,
+            agent_ref: "AGENT-WD-REPLAY",
+            agent_password: &agent_password,
+            agent_balance: 500.0,
+            commission_pct: 5.0,
+        },
+    )
+    .await;
+
+    let endpoint = format!("{}/api/v1/transactions/withdrawal", app.addr);
+    let payload = json!({
+        "client_code": "NFC-WD-REPLAY",
+        "withdrawal_amount": 200.0,
+        "client_password": client_password,
+        "agent_code": "AGENT-WD-REPLAY",
+        "currency_type": "CDF"
+    });
+    let submit = || {
+        app.client
+            .post(&endpoint)
+            .bearer_auth(&token)
+            .header(IDEMPOTENCY_HEADER_NAME, "withdrawal-replay")
+            .json(&payload)
+            .send()
+    };
+    let first = submit().await.unwrap().error_for_status().unwrap();
+    let first = first.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(first["client_balance"], 9790.0);
+    assert_eq!(first["agent_balance"], 700.0);
+
+    let replay = submit().await.unwrap().error_for_status().unwrap();
+    let replay = replay.json::<serde_json::Value>().await.unwrap();
+    let transactions: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions")
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        transactions, 1,
+        "replay must not record a second withdrawal"
+    );
+    assert_eq!(replay, first, "replay must return the original receipt");
 }
 
 #[tokio::test]
