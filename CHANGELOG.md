@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/ardinbig/storm-api/compare/v0.1.4...v0.1.5) - 2026-11-24
+
+### Fixed
+
+- use unique fixture passwords in tests to avoid collisions
+- reject unrepresentable token expiry
+- replay buffered responses without a length header
+
+### Other
+
+- exercise replay errors and OpenAPI edge cases
+- sanitize cache diagnostics and isolate Redis I/O
+- Merge pull request #21 from ardinbig/dependabot/cargo/rust-dependencies-29973b6435
+- update dependencies to the compatible versions
+- *(deps)* bump jsonwebtoken from 11.0.0 to 11.1.0
+- *(deps)* bump the rust-dependencies group with 8 updates
+- add dependabot configuration
+
 ## [0.1.4](https://github.com/ardinbig/storm-api/releases/tag/v0.1.4) - 2026-08-05
 
 ### Added
