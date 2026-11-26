@@ -21,11 +21,13 @@ use crate::{
         commission_tier::{CommissionTier, CreateCommissionTierRequest},
         consumption::{Consumption, CreateConsumptionRequest},
         customer::{
-            Customer, CustomerByCardResponse, RegisterCustomerRequest, UpdateCustomerRequest,
+            Customer, CustomerByCardResponse, CustomerListItem, CustomerListQuery,
+            RegisterCustomerRequest, UpdateCustomerRequest,
         },
         pagination::{
             ActivityItem, ActivityQuery, ConsumptionQuery, PaginatedActivityResponse,
-            PaginatedConsumptionResponse, PaginatedTransactionResponse, TransactionQuery,
+            PaginatedConsumptionResponse, PaginatedCustomerResponse, PaginatedTransactionResponse,
+            TransactionQuery,
         },
         price::{CreatePriceRequest, FuelPrice},
         transaction::{Transaction, WithdrawalRequest, WithdrawalResponse},
@@ -38,7 +40,7 @@ use crate::{
 #[openapi(
     info(
         title = "Storm API",
-        version = "0.1.4",
+        version = "0.1.6",
         description = "Fuel station management REST API — NFC card balances, agent withdrawals with commission, fuel consumption logging, and MLM loyalty bonuses.",
     ),
     paths(
@@ -73,6 +75,7 @@ use crate::{
         category_handler::create_category,
         // Customers
         customer_handler::list_customers,
+        customer_handler::list_paginated_customers,
         customer_handler::get_customer,
         customer_handler::get_by_card,
         customer_handler::register,
@@ -112,6 +115,7 @@ use crate::{
             Card, CardDetail, CreateCardRequest, BalanceCheckRequest, BalanceResponse,
             Category, CreateCategoryRequest,
             Customer, RegisterCustomerRequest, UpdateCustomerRequest, CustomerByCardResponse,
+            CustomerListItem, CustomerListQuery, PaginatedCustomerResponse,
             Consumption, CreateConsumptionRequest,
             Transaction, WithdrawalRequest, WithdrawalResponse,
             Commission, CreateCommissionRequest,

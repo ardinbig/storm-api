@@ -168,7 +168,7 @@ pub async fn login(
     tag = "Agents",
     security(("bearer" = [])),
     params(
-        ("agent_id" = String, Path, description = "Agent UUID as string"),
+        ("agent_id" = String, Path, description = "Agent reference code (not a UUID)"),
     ),
     responses(
         (status = 200, description = "Agent transaction history", body = Vec<AgentHistoryRow>),

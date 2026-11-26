@@ -116,7 +116,6 @@ fn protected_routes(state: &AppState) -> Router<AppState> {
         .nest("/api/v1/cards", routes::cards::routes())
         .nest("/api/v1/prices", routes::prices::routes())
         .nest("/api/v1/agents", routes::agents::routes())
-        // TODO(ardinbig): Implement pagination for customers list (add metadata)
         .nest("/api/v1/customers", routes::customers::routes())
         .nest("/api/v1/consumptions", routes::consumptions::routes())
         .nest("/api/v1/transactions", routes::transactions::routes())

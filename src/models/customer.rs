@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 /// Database row for the `customers` table.
@@ -42,6 +42,27 @@ pub struct Customer {
     pub marital_status: Option<String>,
     /// Organisational affiliation.
     pub affiliation: Option<String>,
+}
+
+/// Query parameters for the paginated customer directory.
+#[derive(Debug, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
+pub struct CustomerListQuery {
+    /// Page number (1-based). Defaults to `1`.
+    #[param(minimum = 1, default = 1, example = 1)]
+    pub page: Option<u32>,
+}
+
+/// Customer summary for the directory. Use `id` to fetch the full profile.
+#[derive(Debug, Serialize, FromRow, ToSchema)]
+pub struct CustomerListItem {
+    pub id: Uuid,
+    pub status: i32,
+    pub client_code: String,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub phone: Option<String>,
+    pub card_id: String,
 }
 
 /// Request body for `POST /api/v1/customers` (register a customer).

@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-use crate::models::{consumption::Consumption, transaction::Transaction};
+use crate::models::{
+    consumption::Consumption, customer::CustomerListItem, transaction::Transaction,
+};
 
 /// Number of items returned per page across all paginated endpoints.
 pub const PAGE_SIZE: u32 = 10;
@@ -38,15 +40,14 @@ pub struct ActivityItem {
 
 // Macro-generated paginated response types
 //
-// All three concrete response structs (`PaginatedTransactionResponse`,
-// `PaginatedConsumptionResponse`, `PaginatedActivityResponse`) share an
+// The concrete paginated response structs share an
 // identical field layout and `new()` constructor.  Instead of copy-pasting
 // the same 8 fields and the same arithmetic three times, a single
 // `paginated_response!` macro invocation generates each distinct named type.
 //
 // Distinct named types are required because utoipa resolves OpenAPI schemas
 // by struct name at compile time; a generic `PaginatedResponse<T>` would
-// produce a single ambiguous schema entry rather than three separate,
+// produce a single ambiguous schema entry rather than separate,
 // self-documenting schema objects in the Swagger UI.
 //
 // The `new()` constructor:
@@ -114,6 +115,12 @@ paginated_response!(
     "Paginated response wrapper for the unified activity feed. Returned by `GET /api/v1/activity`."
 );
 
+paginated_response!(
+    PaginatedCustomerResponse,
+    CustomerListItem,
+    "Paginated customer summaries returned by `GET /api/v1/customers/paginated`."
+);
+
 //  Query-parameter structs
 //
 // `TransactionQuery` and `ConsumptionQuery` share the same three fields.
@@ -125,6 +132,7 @@ macro_rules! query_params {
     ($name:ident, $doc:literal) => {
         #[doc = $doc]
         #[derive(Debug, Default, Deserialize, IntoParams, ToSchema)]
+        #[into_params(parameter_in = Query)]
         pub struct $name {
             /// Page number (1-based). Defaults to `1`.
             #[param(minimum = 1, default = 1, example = 1)]
@@ -140,6 +148,7 @@ macro_rules! query_params {
     ($name:ident, $doc:literal, +kind) => {
         #[doc = $doc]
         #[derive(Debug, Default, Deserialize, IntoParams, ToSchema)]
+        #[into_params(parameter_in = Query)]
         pub struct $name {
             /// Page number (1-based). Defaults to `1`.
             #[param(minimum = 1, default = 1, example = 1)]

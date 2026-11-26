@@ -11,8 +11,12 @@ use uuid::Uuid;
 
 use crate::{
     errors::AppError,
-    models::customer::{
-        Customer, CustomerByCardResponse, RegisterCustomerRequest, UpdateCustomerRequest,
+    models::{
+        customer::{
+            Customer, CustomerByCardResponse, CustomerListItem, RegisterCustomerRequest,
+            UpdateCustomerRequest,
+        },
+        pagination::{PAGE_SIZE, PaginatedCustomerResponse},
     },
     utils::client_code,
 };
@@ -30,6 +34,39 @@ pub async fn list(pool: &PgPool) -> Result<Vec<Customer>, AppError> {
     .await?;
 
     Ok(customers)
+}
+
+/// Lists one page of customer summaries in alphabetical order.
+///
+/// # Errors
+///
+/// Returns [`AppError::BadRequest`] for page zero or [`AppError::Database`]
+/// if PostgreSQL cannot count or fetch the records.
+pub async fn list_paginated(
+    pool: &PgPool,
+    page: u32,
+) -> Result<PaginatedCustomerResponse, AppError> {
+    if page == 0 {
+        return Err(AppError::BadRequest("page must be at least 1".into()));
+    }
+    let limit = i64::from(PAGE_SIZE);
+    let offset = (i64::from(page) - 1) * limit;
+    let total = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM customers")
+        .fetch_one(pool)
+        .await?;
+    let data = if offset >= total {
+        Vec::new()
+    } else {
+        sqlx::query_as::<_, CustomerListItem>(
+            "SELECT id, status, client_code, first_name, last_name, phone, card_id
+             FROM customers ORDER BY last_name, first_name, id LIMIT $1 OFFSET $2",
+        )
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?
+    };
+    Ok(PaginatedCustomerResponse::new(data, page, total))
 }
 
 /// Retrieves a single customer by primary key.
