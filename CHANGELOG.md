@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/ardinbig/storm-api/compare/v0.1.5...v0.2.0) - 2026-11-26
+
+### Added
+
+- add paginated admin directory
+
+### Other
+
+- update OpenAPI 0.1.6 and verify Swagger routes
+
 ## [0.1.5](https://github.com/ardinbig/storm-api/compare/v0.1.4...v0.1.5) - 2026-11-24
 
 ### Fixed
