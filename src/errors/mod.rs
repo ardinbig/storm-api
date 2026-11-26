@@ -38,9 +38,13 @@ pub enum AppError {
     #[error("Bad request: {0}")]
     BadRequest(Cow<'static, str>),
 
-    /// Authentication or authorization failure. -> `401 Unauthorized`
+    /// Missing or invalid authentication. -> `401 Unauthorized`
     #[error("Unauthorized")]
     Unauthorized,
+
+    /// The authenticated caller lacks the required permission. -> `403 Forbidden`
+    #[error("Forbidden")]
+    Forbidden,
 
     /// A uniqueness or integrity constraint was violated. -> `409 Conflict`
     #[error("Conflict: {0}")]
@@ -72,6 +76,7 @@ impl AppError {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::Forbidden => StatusCode::FORBIDDEN,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::Database(_) | Self::Cache(_) | Self::Internal => {
                 StatusCode::INTERNAL_SERVER_ERROR

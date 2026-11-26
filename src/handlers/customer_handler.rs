@@ -1,8 +1,8 @@
 //! Customer handlers: list, get, get-by-card, register, update, and delete.
 
 use axum::{
-    Json,
-    extract::{Path, State},
+    Extension, Json,
+    extract::{Path, Query, State, rejection::QueryRejection},
     http::StatusCode,
 };
 use sqlx::PgPool;
@@ -10,8 +10,13 @@ use uuid::Uuid;
 
 use crate::{
     errors::{AppError, ErrorResponse},
-    models::customer::{
-        Customer, CustomerByCardResponse, RegisterCustomerRequest, UpdateCustomerRequest,
+    models::{
+        customer::{
+            Customer, CustomerByCardResponse, CustomerListQuery, RegisterCustomerRequest,
+            UpdateCustomerRequest,
+        },
+        pagination::PaginatedCustomerResponse,
+        user::CurrentUser,
     },
     services::customer_service,
 };
@@ -32,6 +37,35 @@ use crate::{
 pub async fn list_customers(State(pool): State<PgPool>) -> Result<Json<Vec<Customer>>, AppError> {
     let customers = customer_service::list(&pool).await?;
     Ok(Json(customers))
+}
+
+/// `GET /api/v1/customers/paginated`
+///
+/// Lists one page of customer summaries for an administrator.
+#[utoipa::path(
+    get,
+    path = "/api/v1/customers/paginated",
+    tag = "Customers",
+    security(("bearer" = [])),
+    params(CustomerListQuery),
+    responses(
+        (status = 200, description = "One page of customer summaries. An out-of-range page has no items.", body = PaginatedCustomerResponse),
+        (status = 400, description = "Invalid page number", body = ErrorResponse),
+        (status = 401, description = "Missing or invalid bearer token"),
+        (status = 403, description = "Administrator role required", body = ErrorResponse),
+    ),
+)]
+pub async fn list_paginated_customers(
+    State(pool): State<PgPool>,
+    Extension(user): Extension<CurrentUser>,
+    query: Result<Query<CustomerListQuery>, QueryRejection>,
+) -> Result<Json<PaginatedCustomerResponse>, AppError> {
+    if user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+    let Query(query) = query.map_err(|_| AppError::BadRequest("invalid page number".into()))?;
+    let result = customer_service::list_paginated(&pool, query.page.unwrap_or(1)).await?;
+    Ok(Json(result))
 }
 
 /// `GET /api/v1/customers/{id}`

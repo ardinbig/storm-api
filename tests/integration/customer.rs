@@ -291,3 +291,118 @@ async fn partial_update_preserves_unchanged_fields(pool: PgPool) {
     assert_eq!(body["first_name"], "OrigFirst");
     assert_eq!(body["last_name"], "OrigLast");
 }
+
+async fn get_customer_page(
+    app: &mut axum::Router,
+    query: &str,
+    role: Option<&str>,
+) -> (StatusCode, serde_json::Value) {
+    let path = format!("/api/v1/customers/paginated{query}");
+    let mut request = Request::builder().uri(path);
+    if let Some(role) = role {
+        let token = storm_api::services::auth_service::create_token(
+            &test_config(),
+            &Uuid::nil().to_string(),
+            role,
+        )
+        .unwrap();
+        request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let response = app
+        .call(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let value = if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::NOT_FOUND) {
+        serde_json::Value::Null
+    } else {
+        body_to_value(response.into_body()).await
+    };
+    (status, value)
+}
+
+#[sqlx::test]
+async fn paginated_customers_keeps_tied_names_ordered_across_pages(pool: PgPool) {
+    for number in (1..=12).rev() {
+        let nfc = format!("PAGE-{number}");
+        seed_card(&pool, &nfc).await;
+        sqlx::query(
+            "INSERT INTO customers (id, client_code, first_name, last_name, card_id, address)
+                     VALUES ($1, $2, 'Alex', 'Same', $2, 'not a list field')",
+        )
+        .bind(Uuid::from_u128(number))
+        .bind(&nfc)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let mut app = create_test_app(pool);
+    for (query, page, expected) in [("", 1, 1..=10), ("?page=2", 2, 11..=12)] {
+        let (status, body) = get_customer_page(&mut app, query, Some("admin")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["page"], page);
+        assert_eq!(body["total_pages"], 2);
+        assert_eq!(body["page_size"], 10);
+        assert_eq!(body["total_items"], 12);
+        assert_eq!(body["has_next_page"], page == 1);
+        assert_eq!(body["has_prev_page"], page == 2);
+        assert_eq!(body["remaining_items"], if page == 1 { 2 } else { 0 });
+        let rows = body["data"].as_array().unwrap();
+        let ids = rows
+            .iter()
+            .map(|row| {
+                assert!(row.get("address").is_none());
+                assert_eq!(row["first_name"], "Alex");
+                Uuid::parse_str(row["id"].as_str().unwrap())
+                    .unwrap()
+                    .as_u128()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ids, expected.collect::<Vec<_>>());
+    }
+    let (status, body) = get_customer_page(&mut app, "?page=3", Some("admin")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["data"], json!([]));
+    assert_eq!(body["page"], 3);
+    assert_eq!(body["total_pages"], 2);
+    assert_eq!(body["total_items"], 12);
+    assert_eq!(body["has_next_page"], false);
+    assert_eq!(body["remaining_items"], 0);
+}
+
+#[sqlx::test]
+async fn paginated_customers_documents_empty_page_and_rejects_invalid_page(pool: PgPool) {
+    let mut app = create_test_app(pool);
+    let (status, body) = get_customer_page(&mut app, "?page=1", Some("admin")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body,
+        json!({"data":[],"page":1,"page_size":10,"total_items":0,"total_pages":1,
+        "has_next_page":false,"has_prev_page":false,"remaining_items":0})
+    );
+    for query in [
+        "?page=0",
+        "?page=-1",
+        "?page=invalid",
+        "?page=4294967296",
+        "?page=1&page=2",
+    ] {
+        let (status, body) = get_customer_page(&mut app, query, Some("admin")).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{query}");
+        assert_eq!(body["code"], 400);
+    }
+}
+
+#[sqlx::test]
+async fn paginated_customers_requires_admin(pool: PgPool) {
+    let mut app = create_test_app(pool);
+    assert_eq!(
+        get_customer_page(&mut app, "", None).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    for role in ["agent", "user"] {
+        let (status, body) = get_customer_page(&mut app, "", Some(role)).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body["code"], 403);
+    }
+}

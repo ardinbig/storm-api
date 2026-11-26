@@ -3,6 +3,7 @@
 //! | Method | Path | Handler |
 //! |--------|------|---------|
 //! | `GET` | `/` | [`customer_handler::list_customers`] |
+//! | `GET` | `/paginated` | [`customer_handler::list_paginated_customers`] |
 //! | `POST` | `/` | [`customer_handler::register`] |
 //! | `GET` | `/{id}` | [`customer_handler::get_customer`] |
 //! | `PUT` | `/{id}` | [`customer_handler::update_customer`] |
@@ -25,6 +26,10 @@ pub fn routes() -> Router<AppState> {
             get(customer_handler::get_customer)
                 .put(customer_handler::update_customer)
                 .delete(customer_handler::delete_customer),
+        )
+        .route(
+            "/paginated",
+            get(customer_handler::list_paginated_customers),
         )
         .route("/by-card/{card_id}", get(customer_handler::get_by_card))
 }
