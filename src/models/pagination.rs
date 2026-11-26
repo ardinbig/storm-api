@@ -132,6 +132,7 @@ macro_rules! query_params {
     ($name:ident, $doc:literal) => {
         #[doc = $doc]
         #[derive(Debug, Default, Deserialize, IntoParams, ToSchema)]
+        #[into_params(parameter_in = Query)]
         pub struct $name {
             /// Page number (1-based). Defaults to `1`.
             #[param(minimum = 1, default = 1, example = 1)]
@@ -147,6 +148,7 @@ macro_rules! query_params {
     ($name:ident, $doc:literal, +kind) => {
         #[doc = $doc]
         #[derive(Debug, Default, Deserialize, IntoParams, ToSchema)]
+        #[into_params(parameter_in = Query)]
         pub struct $name {
             /// Page number (1-based). Defaults to `1`.
             #[param(minimum = 1, default = 1, example = 1)]

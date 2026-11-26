@@ -6,7 +6,7 @@
 
 [![API workflow](https://github.com/ardinbig/storm-api/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ardinbig/storm-api/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/ardinbig/storm-api/graph/badge.svg?token=WcHmafLVMx)](https://codecov.io/github/ardinbig/storm-api)
-[![Rust](https://img.shields.io/badge/Rust-1.97.1%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/Rust-1.100.0%2B-orange.svg)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 `storm-api` is a modular Rust REST API built on [Axum](https://docs.rs/axum), [SQLx](https://docs.rs/sqlx), PostgreSQL, and Redis. It is designed for operational reliability: structured logs, explicit health checks, graceful shutdown, OpenAPI-driven documentation, and a test layout that spans unit, integration, and end-to-end scenarios.
@@ -157,6 +157,16 @@ storm-api/
 
 ---
 
+## Using Swagger UI
+
+Open `/api/v1/docs/` on the API server. The interactive documentation uses
+that server and loads its schema from `/api-doc/openapi.json`. For protected
+operations, sign in with `POST /api/v1/auth/login` (system user) or
+`POST /api/v1/agents/login` (agent), copy the `token`, and enter it in
+**Authorize** without a `Bearer ` prefix. Swagger UI adds the prefix.
+
+---
+
 ## Idempotency
 
 Authenticated mutating routes (`POST`, `PUT`, `PATCH`, `DELETE` under the protected router, including `POST /api/v1/auth/logout`) accept an optional `X-Idempotency-Key` header.
@@ -203,7 +213,7 @@ Graceful shutdown listens for `SIGTERM` / `Ctrl+C`, flips the readiness flag to 
 
 | Layer                 | Technology (crates)                                  |
 |-----------------------|------------------------------------------------------|
-| Language              | Rust 1.97+                                           |
+| Language              | Rust 1.100.0+                                           |
 | Web framework         | Axum 0.8 + Tower + tower-http                        |
 | Async runtime         | Tokio                                                |
 | Database              | PostgreSQL via SQLx                                  |

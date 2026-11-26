@@ -46,6 +46,7 @@ pub struct Customer {
 
 /// Query parameters for the paginated customer directory.
 #[derive(Debug, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
 pub struct CustomerListQuery {
     /// Page number (1-based). Defaults to `1`.
     #[param(minimum = 1, default = 1, example = 1)]

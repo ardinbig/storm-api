@@ -40,7 +40,7 @@ use crate::{
 #[openapi(
     info(
         title = "Storm API",
-        version = "0.1.4",
+        version = "0.1.6",
         description = "Fuel station management REST API — NFC card balances, agent withdrawals with commission, fuel consumption logging, and MLM loyalty bonuses.",
     ),
     paths(

@@ -23,8 +23,8 @@ use crate::{
 /// `GET /api/v1/transactions`
 ///
 /// Returns a paginated list of financial transactions (withdrawals), ordered
-/// most-recent-first.  Supports optional filtering by `agent_ref` and
-/// `station_id`.
+/// most-recent-first.  Supports optional filtering by `agent` and
+/// `station`.
 #[utoipa::path(
     get,
     path = "/api/v1/transactions",
@@ -49,9 +49,9 @@ pub async fn list_transactions(
 ///
 /// Lists all transactions for a specific agent.
 ///
-/// **Deprecated** — use `GET /api/v1/transactions?agent_ref={agent_ref}` instead,
+/// **Deprecated** — use `GET /api/v1/transactions?agent={agent_ref}` instead,
 /// which returns pagination metadata and supports an additional `station_id` filter.
-#[deprecated(note = "Use GET /api/v1/transactions?agent_ref={agent_ref} instead")]
+#[deprecated(note = "Use GET /api/v1/transactions?agent={agent_ref} instead")]
 #[utoipa::path(
     get,
     path = "/api/v1/transactions/by-agent/{agent_ref}",

@@ -20,7 +20,7 @@ use crate::{
 ///
 /// Returns a paginated list of fuel consumption records, ordered
 /// most-recent-first.  Supports optional filtering by the operator's
-/// `agent_ref` and by `station_id`.
+/// `agent` and by `station`.
 #[utoipa::path(
     get,
     path = "/api/v1/consumptions",
@@ -47,7 +47,7 @@ pub async fn list_consumptions(
 ///
 /// # Deprecated
 ///
-/// Use `GET /api/v1/consumptions?agent_ref={agent_ref}` or the unified
+/// Use `GET /api/v1/consumptions?agent={agent_ref}` or the unified
 /// `GET /api/v1/activity?kind=CONSUMPTION` instead.
 #[deprecated(note = "Use GET /api/v1/consumptions?agent_ref=... or GET /api/v1/activity instead")]
 #[utoipa::path(
